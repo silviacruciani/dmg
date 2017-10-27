@@ -87,12 +87,10 @@ void ShapeAnalyzer::get_supervoxels(){
     super.setSpatialImportance(spatial_importance);
     super.setNormalImportance(normal_importance);
 
-    std::map <uint32_t, pcl::Supervoxel<PointT>::Ptr > supervoxel_clusters;
-
     pcl::console::print_highlight ("Extracting supervoxels!\n");
     super.extract (supervoxel_clusters);
     pcl::console::print_info ("Found %d supervoxels\n", supervoxel_clusters.size ());
-    //super.refineSupervoxels(10, supervoxel_clusters);
+    super.refineSupervoxels(10, supervoxel_clusters);
     voxel_centroid_cloud=super.getVoxelCentroidCloud();
     std::cout<<"VoxelCentroidCloud size: "<<voxel_centroid_cloud->points.size()<<std::endl;
 
@@ -113,8 +111,9 @@ void ShapeAnalyzer::get_supervoxels(){
 
     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr centroids_cloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
     //iterate over the supervoxels to get the REAL centroids cloud
+    int pc_idx=0;
     for (auto const& x : supervoxel_clusters){
-        //std::cout<<x.second->centroid_.x<<std::endl;
+        //std::cout<<x.first<<" "<<pc_idx<<std::endl;
         pcl::PointXYZRGBA newpoint;
         newpoint.x=x.second->centroid_.x;
         newpoint.y=x.second->centroid_.y;
@@ -124,6 +123,9 @@ void ShapeAnalyzer::get_supervoxels(){
         newpoint.b=x.second->centroid_.b;
         newpoint.a=x.second->centroid_.a;
         centroids_cloud->push_back(newpoint);
+        //necessary mapping from index in the point cloud to supervoxel label:
+        pc_to_supervoxel_idx.insert(std::pair<int, uint32_t>(pc_idx, x.first));
+        pc_idx++;
         //std::cout<<"CentroidsCloud size: "<<centroids_cloud->points.size()<<std::endl;
     }
 
@@ -138,6 +140,9 @@ void ShapeAnalyzer::get_supervoxels(){
     for ( ; label_itr != supervoxel_adjacency.end ();) {
         //First get the label
         uint32_t supervoxel_label = label_itr->first;
+        //if(supervoxel_label==27){
+            //viewer->addSphere(supervoxel_clusters.at(supervoxel_label)->centroid_, 1, 0.0, 1.0, 0.0, std::to_string(supervoxel_label));
+        //}
         //Now get the supervoxel corresponding to the label
         pcl::Supervoxel<PointT>::Ptr supervoxel = supervoxel_clusters.at (supervoxel_label);
 
@@ -147,6 +152,10 @@ void ShapeAnalyzer::get_supervoxels(){
         for ( ; adjacent_itr!=supervoxel_adjacency.equal_range (supervoxel_label).second; adjacent_itr++){
           pcl::Supervoxel<PointT>::Ptr neighbor_supervoxel = supervoxel_clusters.at (adjacent_itr->second);
           adjacent_supervoxel_centers.push_back (neighbor_supervoxel->centroid_);
+          //if(supervoxel_label==27){
+            //std::cout<<"-----adjacent label: "<<adjacent_itr->second<<std::endl;
+            //viewer->addSphere(neighbor_supervoxel->centroid_, 1, 1.0, 0.0, 0.0, std::to_string(adjacent_itr->second));
+          //}
         }
         //Now we make a name for this polygon
         std::stringstream ss;
@@ -234,7 +243,10 @@ int ShapeAnalyzer::connect_centroid_to_contact(geometry_msgs::Point p, geometry_
         return -1;
     }
 
-    return pointIdxNKNSearch[min_dist_idx];
+    //connect this into the label for the supervoxel:
+    //std::cout<<"Nearest neighbour index: "<<pointIdxNKNSearch[min_dist_idx]<<std::endl;
+    //std::cout<<"Corresponds to index: "<<pc_to_supervoxel_idx.at(pointIdxNKNSearch[min_dist_idx])<<std::endl;
+    return int(pc_to_supervoxel_idx.at(pointIdxNKNSearch[min_dist_idx]));
 
 }
 
@@ -303,14 +315,14 @@ std::stack<int> ShapeAnalyzer::get_path(std::multimap<uint32_t,uint32_t> graph, 
         //remove this element from Q
         Q.erase(u);
         dist_faked[u]=DBL_MAX; //this is to look for shortest distance of elements still in Q
-        std::cout<<"current vertex: "<<u<<std::endl;
+        //std::cout<<"current vertex: "<<u<<std::endl;
         //check if the element found is the goal
         if(u!=goal){
             //loop over all the neighbours of u
             std::multimap<uint32_t,uint32_t>::iterator adjacent_itr=supervoxel_adjacency.equal_range(uint32_t(u)).first;
             for ( ; adjacent_itr!=supervoxel_adjacency.equal_range(uint32_t(u)).second; adjacent_itr++){
                 //if this element is still in Q
-                std::cout<<"current adjacent element "<<adjacent_itr->second<<std::endl;
+                //std::cout<<"current adjacent element "<<adjacent_itr->second<<std::endl;
                 if(Q.find(int(adjacent_itr->second))!=Q.end()){
                     double alt=dist[u]+1.0; //all the edges assumed at distance 1
                     if(alt<dist[int(adjacent_itr->second)]){
@@ -324,7 +336,7 @@ std::stack<int> ShapeAnalyzer::get_path(std::multimap<uint32_t,uint32_t> graph, 
 
         }
         else{
-            std::cout<<"Found Path!"<<std::endl;
+            //std::cout<<"Found Path!"<<std::endl;
             //do something
             while(prev[u]!=all_centroids_cloud->points.size()+1){
                 std::cout<<"u: "<<u<<std::endl;
@@ -340,7 +352,7 @@ std::stack<int> ShapeAnalyzer::get_path(std::multimap<uint32_t,uint32_t> graph, 
         return S;
     }
 
-    std::cout<<"Found path of length: "<<S.size()<<std::endl;
+    std::cout<<"Found path of length: "<<S.size()-1<<std::endl;
     return S;
 }
 
@@ -362,17 +374,17 @@ void ShapeAnalyzer::compute_path(int finger_id){
     idx=S.top();
     S.pop();
     path.push_back(idx);
-    point1=all_centroids_cloud->points[idx];
+    point1=supervoxel_clusters.at(idx)->centroid_;
     //get the new elements and draw the line
     int count=0;
     while(S.size()>0){
         idx=S.top();
         S.pop();
-        point2=all_centroids_cloud->points[idx];
-        //viewer->addLine(point1, point2, 1, 1, 0, "line "+std::to_string(count));
-        //viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 2, "line "+std::to_string(count));
+        point2=supervoxel_clusters.at(idx)->centroid_;
+        viewer->addLine(point1, point2, 1, 1, 0, "line "+std::to_string(count));
+        viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 2, "line "+std::to_string(count));
         count++;
-        std::cout<<"line drawn: "<<count<<std::cout;
+        //std::cout<<"line drawn: "<<count<<std::endl;
         point1=point2;
     }    
 }

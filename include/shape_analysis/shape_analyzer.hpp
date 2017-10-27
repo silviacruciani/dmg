@@ -57,6 +57,7 @@ namespace shape_analysis{
 
             pcl::PointCloud<pcl::PointXYZ>::Ptr object_shape;
             pcl::visualization::PCLVisualizer *viewer;
+            std::map <uint32_t, pcl::Supervoxel<PointT>::Ptr > supervoxel_clusters;
             pcl::PointCloud<pcl::PointXYZRGBA>::Ptr voxel_centroid_cloud;
             pcl::PointCloud<pcl::PointXYZL>::Ptr labeled_voxel_cloud;
             pcl::PointCloud<pcl::PointNormal>::Ptr sv_normal_cloud;
@@ -68,6 +69,7 @@ namespace shape_analysis{
             int desired_centroid_idx_1; //first finger
             int desired_centroid_idx_2; //second finger
             //std::thread *viewer_thread;
+            std::map <int, uint32_t> pc_to_supervoxel_idx;
     };
 }
 
