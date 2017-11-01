@@ -25,14 +25,6 @@
 #include <pcl/kdtree/kdtree_flann.h>
 #include <vector>
 
-
-typedef pcl::PointXYZRGBA PointT;
-typedef pcl::PointCloud<PointT> PointCloudT;
-typedef pcl::PointNormal PointNT;
-typedef pcl::PointCloud<PointNT> PointNCloudT;
-typedef pcl::PointXYZL PointLT;
-typedef pcl::PointCloud<PointLT> PointLCloudT;
-
 namespace shape_analysis{
     class ShapeAnalyzer{
         public:
@@ -47,8 +39,8 @@ namespace shape_analysis{
             void set_desired_contact(geometry_msgs::Point p, geometry_msgs::Quaternion q, int finger_id);
             void compute_path(int finger_id);
         private:
-            void addSupervoxelConnectionsToViewer(PointT &supervoxel_center,
-                                  PointCloudT &adjacent_supervoxel_centers,
+            void addSupervoxelConnectionsToViewer(pcl::PointXYZRGBA &supervoxel_center,
+                                  pcl::PointCloud<pcl::PointXYZRGBA> &adjacent_supervoxel_centers,
                                   std::string supervoxel_name,
                                   pcl::visualization::PCLVisualizer* viewer);
             bool return_manipulation_sequence(); //create service file for this
@@ -57,7 +49,7 @@ namespace shape_analysis{
 
             pcl::PointCloud<pcl::PointXYZ>::Ptr object_shape;
             pcl::visualization::PCLVisualizer *viewer;
-            std::map <uint32_t, pcl::Supervoxel<PointT>::Ptr > supervoxel_clusters;
+            std::map <uint32_t, pcl::Supervoxel<pcl::PointXYZRGBA>::Ptr > supervoxel_clusters;
             pcl::PointCloud<pcl::PointXYZRGBA>::Ptr voxel_centroid_cloud;
             pcl::PointCloud<pcl::PointXYZL>::Ptr labeled_voxel_cloud;
             pcl::PointCloud<pcl::PointNormal>::Ptr sv_normal_cloud;

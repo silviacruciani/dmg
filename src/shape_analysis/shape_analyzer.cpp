@@ -74,11 +74,11 @@ void ShapeAnalyzer::get_supervoxels(){
     float normal_importance = 1.0;
 
     //now use the supervoxels
-    pcl::SupervoxelClustering<PointT> super(voxel_resolution, seed_resolution);
+    pcl::SupervoxelClustering<pcl::PointXYZRGBA> super(voxel_resolution, seed_resolution);
     if(disable_transform){
         super.setUseSingleCameraTransform (false);
     }
-    PointCloudT::Ptr cloud=boost::shared_ptr <PointCloudT> (new PointCloudT ());
+    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud=boost::shared_ptr <pcl::PointCloud<pcl::PointXYZRGBA>> (new pcl::PointCloud<pcl::PointXYZRGBA> ());
     pcl::copyPointCloud(*object_shape,*cloud);
         
 
@@ -144,13 +144,13 @@ void ShapeAnalyzer::get_supervoxels(){
             //viewer->addSphere(supervoxel_clusters.at(supervoxel_label)->centroid_, 1, 0.0, 1.0, 0.0, std::to_string(supervoxel_label));
         //}
         //Now get the supervoxel corresponding to the label
-        pcl::Supervoxel<PointT>::Ptr supervoxel = supervoxel_clusters.at (supervoxel_label);
+        pcl::Supervoxel<pcl::PointXYZRGBA>::Ptr supervoxel = supervoxel_clusters.at (supervoxel_label);
 
         //Now we need to iterate through the adjacent supervoxels and make a point cloud of them
-        PointCloudT adjacent_supervoxel_centers;
+        pcl::PointCloud<pcl::PointXYZRGBA> adjacent_supervoxel_centers;
         std::multimap<uint32_t,uint32_t>::iterator adjacent_itr = supervoxel_adjacency.equal_range (supervoxel_label).first;
         for ( ; adjacent_itr!=supervoxel_adjacency.equal_range (supervoxel_label).second; adjacent_itr++){
-          pcl::Supervoxel<PointT>::Ptr neighbor_supervoxel = supervoxel_clusters.at (adjacent_itr->second);
+          pcl::Supervoxel<pcl::PointXYZRGBA>::Ptr neighbor_supervoxel = supervoxel_clusters.at (adjacent_itr->second);
           adjacent_supervoxel_centers.push_back (neighbor_supervoxel->centroid_);
           //if(supervoxel_label==27){
             //std::cout<<"-----adjacent label: "<<adjacent_itr->second<<std::endl;
@@ -169,8 +169,8 @@ void ShapeAnalyzer::get_supervoxels(){
     //spin_viewer();
 }
 
-void ShapeAnalyzer::addSupervoxelConnectionsToViewer (PointT &supervoxel_center,
-                                  PointCloudT &adjacent_supervoxel_centers,
+void ShapeAnalyzer::addSupervoxelConnectionsToViewer (pcl::PointXYZRGBA &supervoxel_center,
+                                  pcl::PointCloud<pcl::PointXYZRGBA> &adjacent_supervoxel_centers,
                                   std::string supervoxel_name,
                                   pcl::visualization::PCLVisualizer* viewer){
 
@@ -179,7 +179,7 @@ void ShapeAnalyzer::addSupervoxelConnectionsToViewer (PointT &supervoxel_center,
     vtkSmartPointer<vtkPolyLine> polyLine=vtkSmartPointer<vtkPolyLine>::New();
 
     //Iterate through all adjacent points, and add a center point to adjacent point pair
-    PointCloudT::iterator adjacent_itr = adjacent_supervoxel_centers.begin ();
+    pcl::PointCloud<pcl::PointXYZRGBA>::iterator adjacent_itr = adjacent_supervoxel_centers.begin ();
     for ( ; adjacent_itr != adjacent_supervoxel_centers.end (); ++adjacent_itr){
         points->InsertNextPoint (supervoxel_center.data);
         points->InsertNextPoint (adjacent_itr->data);
