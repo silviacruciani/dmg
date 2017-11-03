@@ -96,8 +96,8 @@ void ShapeAnalyzer::get_supervoxels(){
 
     pcl::console::print_highlight ("Extracting supervoxels!\n");
     super.extract (supervoxel_clusters);
-    pcl::console::print_info ("Found %d supervoxels\n", supervoxel_clusters.size ());
-    super.refineSupervoxels(15, supervoxel_clusters);
+    pcl::console::print_info ("Found %d supervoxels. Refining...\n", supervoxel_clusters.size ());
+    //super.refineSupervoxels(8, supervoxel_clusters);
     voxel_centroid_cloud=super.getVoxelCentroidCloud();
     std::cout<<"VoxelCentroidCloud size: "<<voxel_centroid_cloud->points.size()<<std::endl;
 
@@ -438,7 +438,7 @@ void ShapeAnalyzer::refine_adjacency(){
             //now check if these two normals have a similar direction
             if(fabs((supervoxel_normal.normal_x-adjacent_normal.normal_x)*(supervoxel_normal.normal_x-adjacent_normal.normal_x)+
                 (supervoxel_normal.normal_y-adjacent_normal.normal_y)*(supervoxel_normal.normal_y-adjacent_normal.normal_y)+
-                (supervoxel_normal.normal_z-adjacent_normal.normal_z)*(supervoxel_normal.normal_z-adjacent_normal.normal_z))<0.05){ //check what value to put there
+                (supervoxel_normal.normal_z-adjacent_normal.normal_z)*(supervoxel_normal.normal_z-adjacent_normal.normal_z))<0.07){ //check what value to put there
 
                 //add this to the visualization debug
                 adjacent_supervoxel_centers.push_back(neighbor_supervoxel->centroid_);
@@ -448,7 +448,7 @@ void ShapeAnalyzer::refine_adjacency(){
             //check if the normal is pointing in the opposite direction (inwards instead of outwards)
             else if(fabs((supervoxel_normal.normal_x+adjacent_normal.normal_x)*(supervoxel_normal.normal_x+adjacent_normal.normal_x)+
                 (supervoxel_normal.normal_y+adjacent_normal.normal_y)*(supervoxel_normal.normal_y+adjacent_normal.normal_y)+
-                (supervoxel_normal.normal_z+adjacent_normal.normal_z)*(supervoxel_normal.normal_z+adjacent_normal.normal_z))<0.03){
+                (supervoxel_normal.normal_z+adjacent_normal.normal_z)*(supervoxel_normal.normal_z+adjacent_normal.normal_z))<0.07){
 
                 //add this to the visualization debug
                 adjacent_supervoxel_centers.push_back(neighbor_supervoxel->centroid_);
@@ -465,15 +465,86 @@ void ShapeAnalyzer::refine_adjacency(){
         label_itr=supervoxel_adjacency.upper_bound(supervoxel_label);
     }
 
+    //analyze the refined adjacency to generate a map of the connected components (BFS)
+    std::set<uint32_t> examined_nodes;
+    std::map<int, std::set<uint32_t>> connected_component_to_set_of_nodes;
+    std::map<uint32_t, int> nodes_to_connected_component;
+    std::map<int, Eigen::Vector3f> component_to_average_normal;
+    label_itr=refined_adjacency.begin();
+    int component_id=-1;
+    for ( ; label_itr!=refined_adjacency.end();) {
+        //get the supervoxel id
+        uint32_t supervoxel_label = label_itr->first;
+        if(!(examined_nodes.find(supervoxel_label)!=examined_nodes.end())){
+            //this node had not been analyzed before!
+            component_id++;
+            int num_components=0;
+            Eigen::Vector3f sum_normal;
+            sum_normal<<0.0, 0.0, 0.0;
+
+            Eigen::Vector3f reference_normal;
+            reference_normal<<supervoxel_clusters.at(supervoxel_label)->normal_.normal_x,
+                        supervoxel_clusters.at(supervoxel_label)->normal_.normal_y,
+                        supervoxel_clusters.at(supervoxel_label)->normal_.normal_z;
+
+            //now start a dfs visit of all the nodes that can be reached from here!
+            std::set<uint32_t> discovered_nodes;
+            std::stack<uint32_t> S;
+            S.push(supervoxel_label);
+            while (!S.empty()){
+                uint32_t v=S.top();
+                S.pop();
+                if(discovered_nodes.find(v)==discovered_nodes.end()){
+                    discovered_nodes.insert(v); //for the local bfs
+                    examined_nodes.insert(v); //for the global analysis
+
+                    nodes_to_connected_component.insert(std::pair<uint32_t, int>(v, component_id));
+                    Eigen::Vector3f normal;
+                    normal<<supervoxel_clusters.at(v)->normal_.normal_x,
+                        supervoxel_clusters.at(v)->normal_.normal_y,
+                        supervoxel_clusters.at(v)->normal_.normal_z;
+                    //check if the normal has not a huge discordance:
+                    if((reference_normal-normal).norm()<0.03){
+                        //average the normal
+                        sum_normal=sum_normal+normal;
+                        num_components++;
+                    }
+                    else{
+                        //average the normal but change sign
+                        sum_normal=sum_normal-normal;
+                        num_components++;
+                    }                    
+
+                    //now get all the adjacent nodes
+                    std::multimap<uint32_t,uint32_t>::iterator adjacent_itr=refined_adjacency.equal_range(v).first;
+                    for ( ; adjacent_itr!=refined_adjacency.equal_range(v).second; adjacent_itr++){
+                        S.push(adjacent_itr->second);
+                    }
+                }
+            }
+
+            //now get the average normal
+            Eigen::Vector3f average_normal=sum_normal/num_components;
+            component_to_average_normal.insert(std::pair<int, Eigen::Vector3f>(component_id, average_normal));
+            connected_component_to_set_of_nodes.insert(std::pair<int, std::set<uint32_t>>(component_id, discovered_nodes));
+        }
+
+        //move the iterator to the next label
+        label_itr=refined_adjacency.upper_bound(supervoxel_label);
+    }
+
+    std::cout<<"Found connected components: "<<component_id+1<<std::endl;
+
+
     //now that the adjacency has been already reduced a lot, check for the possible orientations of the gripper
     //for each connected component, whose normals are similar, define an absolute orientation which is the 0 deg orientation
     //remember that some normals have opposite sign!
 
-
-    //map the node to the set of possible orientations (discretization step of 5 degrees)
-    /*std::map<uint32_t, std::set<double>> possible_angles; 
-
-    std::set<double> angles;
+    std::map<uint32_t, std::set<int>> possible_angles; //discretization step of 5 degrees:
+    std::set<int> all_angles;
+    for(int i=0; i<=360; i+=5){
+        all_angles.insert(i);
+    }
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ> ());
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered (new pcl::PointCloud<pcl::PointXYZ>);
@@ -485,8 +556,112 @@ void ShapeAnalyzer::refine_adjacency(){
 
     pcl::PassThrough<pcl::PointXYZ> pass;
 
+    for(int component=0; component<=component_id; component++){
+        //get the average normal of the component:
+        Eigen::Vector3f nx, ny, nz;
+        nx=component_to_average_normal.at(component);
+        if(fabs(nx(0))>0.00000001){
+            ny(1)=0;
+            ny(2)=sqrt(nx(0)*nx(0)/(nx(0)*nx(0)+nx(2)*nx(2)));
+            ny(0)=-nx(2)*ny(2)/nx(0);
+        }
+        else if(fabs(nx(1))>0.00000001){
+            ny(2)=0;
+            ny(0)=sqrt(nx(1)*nx(1)/(nx(1)*nx(1)+nx(0)*nx(0)));
+            ny(1)=-ny(0)*nx(0)/nx(1);
+        }
+        else{
+            ny(0)=0;
+            ny(1)=sqrt(nx(2)*nx(2)/(nx(1)*nx(1)+nx(2)*nx(2)));
+            ny(2)=-nx(1)*ny(1)/nx(2);
+        }
+        nz=nx.cross(ny);
+
+        //ny is the axis at which the angle is 0, for all the nodes
+
+        //great. Now we can create a matrix to transform the pointcloud with this new reference frame
+        Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+        Eigen::Matrix3f R;
+        R(0,0)=nx.dot(x);
+        R(0,1)=nx.dot(y);
+        R(0,2)=nx.dot(z);
+
+        R(1,0)=ny.dot(x);
+        R(1,1)=ny.dot(y);
+        R(1,2)=ny.dot(z);
+
+        R(2,0)=nz.dot(x);
+        R(2,1)=nz.dot(y);
+        R(2,2)=nz.dot(z);
+
+        transform.block<3,3>(0,0)=R;
+        //for the translation, cicle through all the nodes in the component
+        std::vector<uint32_t> nodes(connected_component_to_set_of_nodes.at(component).begin(), connected_component_to_set_of_nodes.at(component).end());
+        for(int idx=0; idx<nodes.size(); idx++){
+            int pc_idx=supervoxel_to_pc_idx.at(nodes[idx]);
+            pcl::PointXYZRGBA c=all_centroids_cloud->at(pc_idx);
+            transform.block<3,1>(0,3)=-R*Eigen::Vector3f(c.x, c.y, c.z);
+            //now we can transform the pointcloud and filter it
+
+            pcl::transformPointCloud (*object_shape, *transformed_cloud, transform);
+
+            //now cut the pointcloud
+            pass.setInputCloud (transformed_cloud);
+            pass.setFilterFieldName ("x");
+            pass.setFilterLimits (-1, 1); //2 mm total 
+            pass.filter(*cloud_filtered);
+
+            pass.setInputCloud(cloud_filtered);
+            pass.setFilterFieldName("y");
+            pass.setFilterLimits (-l_finger-0.5, l_finger+0.5);
+            pass.filter(*transformed_cloud);
+
+            pass.setInputCloud(transformed_cloud);
+            pass.setFilterFieldName("z");
+            pass.setFilterLimits (-l_finger-0.5, l_finger+0.5); 
+            pass.filter(*cloud_filtered);
+
+            //use kdltree to create a sphere with all the neighbours and their respective distances
+            pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
+            kdtree.setInputCloud (cloud_filtered);
+            pcl::PointXYZ searchPoint;
+            searchPoint.x=searchPoint.y=searchPoint.z=0.0;
+            std::vector<int> pointIdxRadiusSearch; //to store index of surrounding points 
+            std::vector<float> pointRadiusSquaredDistance; // to store distance to surrounding points
+
+            std::set<int> angles_per_node(all_angles);
+
+            if(kdtree.radiusSearch(searchPoint, l_finger+1.0, pointIdxRadiusSearch, pointRadiusSquaredDistance)>0){
+                for(int i=0; i<pointIdxRadiusSearch.size(); i++){
+                    //check if the distance is larger
+                    if(pointRadiusSquaredDistance[i]>=l_finger-1.0){
+                        //check the point and associate it with the corresponding angle
+                        //the x axis corresponds to the normal. the ny axis corresponds to the 0 angle
+                        pcl::PointXYZ outer_point=cloud_filtered->at(pointIdxRadiusSearch[i]);
+                        double angle=atan2(outer_point.z, outer_point.y);
+                        //approximate the angle in multiples of 5
+                        double round_angle=angle+5/2;
+                        //round_angle-=floor(round_angle)%5;
+                        //convert in int
+                        int int_round_angle=floor(round_angle);
+                        int int_angle=int_round_angle-(int_round_angle%5);
+                        if(int_angle%5!=0){
+                            std::cout<<"ERROR IN THE ROUNDING TO 5"<<std::endl;
+                        }
+                        angles_per_node.erase((int_angle)); //does it work if the set already doesn't have the angle?
+                    }
+                }
+            }
+
+            //now add this mapping between the supervoxel and the possible angles
+            possible_angles.insert(std::pair<uint32_t, std::set<int>>(idx, angles_per_node));
+        }
+
+        //great. Now add this to the visualizer so we can debug? for now it is very difficult
+    }
+
     //iterate over all the nodes and fill the list of possible angles
-    for(int i=0; i<centroids_ids.size(); i++){
+    /*for(int i=0; i<centroids_ids.size(); i++){
         //get the normal of this point
         int pc_idx=supervoxel_to_pc_idx.at(centroids_ids[i]);
         pcl::Normal n=all_normals_clouds->at(pc_idx);
