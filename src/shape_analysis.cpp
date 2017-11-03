@@ -30,11 +30,14 @@ int main(int argc, char *argv[]){
     p.y=-0.01;
     p.z=0.0;
     q.w=1.0;
-    a.set_initial_contact(p, q, 1);
+    //a.set_initial_contact(p, q, 1);
 
     p.x=0.04;
-    a.set_desired_contact(p, q, 1);
-    a.compute_path(1);
+    //a.set_desired_contact(p, q, 1);
+    //a.compute_path(1);
+
+    a.set_finger_length(0.04); //in meters
+    a.refine_adjacency();
 
     a.spin_viewer();
 
