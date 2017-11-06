@@ -28,6 +28,11 @@ void ShapeAnalyzer::set_object_from_pointcloud(std::string file_name){
         std::cout<<"Error loading model cloud."<<std::endl;
     }
     object_shape=in_cloud;
+    //print the dimensions:
+    pcl::PointXYZ max, min;
+    pcl::getMinMax3D(*object_shape, min, max);
+    std::cout<<"min: "<<min.x<<" "<<min.y<<" "<<min.z<<std::endl;
+    std::cout<<"max: "<<max.x<<" "<<max.y<<" "<<max.z<<std::endl;
     //visualizer to be used for debug purposes
     viewer=new pcl::visualization::PCLVisualizer ("3D Viewer");
     int v(0);
@@ -97,7 +102,7 @@ void ShapeAnalyzer::get_supervoxels(){
     pcl::console::print_highlight ("Extracting supervoxels!\n");
     super.extract (supervoxel_clusters);
     pcl::console::print_info ("Found %d supervoxels. Refining...\n", supervoxel_clusters.size ());
-    //super.refineSupervoxels(8, supervoxel_clusters);
+    super.refineSupervoxels(8, supervoxel_clusters);
     voxel_centroid_cloud=super.getVoxelCentroidCloud();
     std::cout<<"VoxelCentroidCloud size: "<<voxel_centroid_cloud->points.size()<<std::endl;
 
@@ -467,9 +472,6 @@ void ShapeAnalyzer::refine_adjacency(){
 
     //analyze the refined adjacency to generate a map of the connected components (BFS)
     std::set<uint32_t> examined_nodes;
-    std::map<int, std::set<uint32_t>> connected_component_to_set_of_nodes;
-    std::map<uint32_t, int> nodes_to_connected_component;
-    std::map<int, Eigen::Vector3f> component_to_average_normal;
     label_itr=refined_adjacency.begin();
     int component_id=-1;
     for ( ; label_itr!=refined_adjacency.end();) {
@@ -540,9 +542,9 @@ void ShapeAnalyzer::refine_adjacency(){
     //for each connected component, whose normals are similar, define an absolute orientation which is the 0 deg orientation
     //remember that some normals have opposite sign!
 
-    std::map<uint32_t, std::set<int>> possible_angles; //discretization step of 5 degrees:
+    //discretization step of 5 degrees:
     std::set<int> all_angles;
-    for(int i=0; i<=360; i+=5){
+    for(int i=0; i<360; i+=5){
         all_angles.insert(i);
     }
 
@@ -557,6 +559,7 @@ void ShapeAnalyzer::refine_adjacency(){
     pcl::PassThrough<pcl::PointXYZ> pass;
 
     for(int component=0; component<=component_id; component++){
+        std::cout<<"component: "<<component<<std::endl;
         //get the average normal of the component:
         Eigen::Vector3f nx, ny, nz;
         nx=component_to_average_normal.at(component);
@@ -580,7 +583,7 @@ void ShapeAnalyzer::refine_adjacency(){
         //ny is the axis at which the angle is 0, for all the nodes
 
         //great. Now we can create a matrix to transform the pointcloud with this new reference frame
-        Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+        //Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
         Eigen::Matrix3f R;
         R(0,0)=nx.dot(x);
         R(0,1)=nx.dot(y);
@@ -594,19 +597,20 @@ void ShapeAnalyzer::refine_adjacency(){
         R(2,1)=nz.dot(y);
         R(2,2)=nz.dot(z);
 
-        transform.block<3,3>(0,0)=R;
+        /*transform.block<3,3>(0,0)=R;*/
         //for the translation, cicle through all the nodes in the component
         std::vector<uint32_t> nodes(connected_component_to_set_of_nodes.at(component).begin(), connected_component_to_set_of_nodes.at(component).end());
         for(int idx=0; idx<nodes.size(); idx++){
+            //std::cout<<"    node: "<<nodes[idx]<<std::endl;
             int pc_idx=supervoxel_to_pc_idx.at(nodes[idx]);
             pcl::PointXYZRGBA c=all_centroids_cloud->at(pc_idx);
-            transform.block<3,1>(0,3)=-R*Eigen::Vector3f(c.x, c.y, c.z);
+            //transform.block<3,1>(0,3)=-R*Eigen::Vector3f(c.x, c.y, c.z);
             //now we can transform the pointcloud and filter it
 
-            pcl::transformPointCloud (*object_shape, *transformed_cloud, transform);
+            //pcl::transformPointCloud (*object_shape, *transformed_cloud, transform);
 
             //now cut the pointcloud
-            pass.setInputCloud (transformed_cloud);
+            /*pass.setInputCloud (transformed_cloud);
             pass.setFilterFieldName ("x");
             pass.setFilterLimits (-1, 1); //2 mm total 
             pass.filter(*cloud_filtered);
@@ -619,39 +623,74 @@ void ShapeAnalyzer::refine_adjacency(){
             pass.setInputCloud(transformed_cloud);
             pass.setFilterFieldName("z");
             pass.setFilterLimits (-l_finger-0.5, l_finger+0.5); 
-            pass.filter(*cloud_filtered);
+            pass.filter(*cloud_filtered);*/
 
             //use kdltree to create a sphere with all the neighbours and their respective distances
             pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
-            kdtree.setInputCloud (cloud_filtered);
+            kdtree.setInputCloud (object_shape);
             pcl::PointXYZ searchPoint;
-            searchPoint.x=searchPoint.y=searchPoint.z=0.0;
+            //searchPoint.x=searchPoint.y=searchPoint.z=0.0;
+            searchPoint.x=c.x;
+            searchPoint.y=c.y;
+            searchPoint.z=c.z;
             std::vector<int> pointIdxRadiusSearch; //to store index of surrounding points 
             std::vector<float> pointRadiusSquaredDistance; // to store distance to surrounding points
 
             std::set<int> angles_per_node(all_angles);
 
+            std::cout<<"impossible angles: ";
             if(kdtree.radiusSearch(searchPoint, l_finger+1.0, pointIdxRadiusSearch, pointRadiusSquaredDistance)>0){
+                pcl::PointCloud<pcl::PointXYZ>::Ptr neighbour_cloud(new pcl::PointCloud<pcl::PointXYZ>());
                 for(int i=0; i<pointIdxRadiusSearch.size(); i++){
                     //check if the distance is larger
-                    if(pointRadiusSquaredDistance[i]>=l_finger-1.0){
-                        //check the point and associate it with the corresponding angle
-                        //the x axis corresponds to the normal. the ny axis corresponds to the 0 angle
-                        pcl::PointXYZ outer_point=cloud_filtered->at(pointIdxRadiusSearch[i]);
-                        double angle=atan2(outer_point.z, outer_point.y);
-                        //approximate the angle in multiples of 5
-                        double round_angle=angle+5/2;
-                        //round_angle-=floor(round_angle)%5;
-                        //convert in int
-                        int int_round_angle=floor(round_angle);
-                        int int_angle=int_round_angle-(int_round_angle%5);
-                        if(int_angle%5!=0){
-                            std::cout<<"ERROR IN THE ROUNDING TO 5"<<std::endl;
+                    if(pointRadiusSquaredDistance[i]>=l_finger*l_finger){
+                        //create a 3D vector:
+                        Eigen::Vector3f point;
+                        point<<object_shape->at(pointIdxRadiusSearch[i]).x, object_shape->at(pointIdxRadiusSearch[i]).y, object_shape->at(pointIdxRadiusSearch[i]).z;
+                        Eigen::Vector3f transformed_point=R*point;
+                        //use the coordinates of the point in the normal reference frame to compute the elevation
+                        double elevation=asin(transformed_point(0)/sqrt(pointRadiusSquaredDistance[i]));
+                        //now check if the elevation is in the defined interval:
+                        if(fabs(elevation)<0.1){ //10 degrees total
+                            //std::cout<<"point: "<<transformed_point.transpose()<<std::endl;
+                            //add the point to the poincloud for debug
+                            neighbour_cloud->push_back(object_shape->at(pointIdxRadiusSearch[i]));
+                            //check the point and associate it with the corresponding angle
+                            //the x axis corresponds to the normal. the ny axis corresponds to the 0 angle
+                            double angle=atan2(transformed_point(2), transformed_point(1));
+                            //convert the angle into degrees:
+                            angle=angle*180.0/M_PI;
+                            //std::cout<<"    angle: "<<angle<<std::endl;
+                            //approximate the angle in multiples of 5
+                            double round_angle=angle+5/2;
+                            //round_angle-=floor(round_angle)%5;
+                            //convert in int
+                            int int_round_angle=floor(round_angle);
+                            //convert from 360 to 0:
+                            if(int_round_angle==360){
+                                int_round_angle=0;
+                            }
+                            int int_angle=int_round_angle-(int_round_angle%5);
+                            if(int_angle%5!=0){
+                                std::cout<<"ERROR IN THE ROUNDING TO 5"<<std::endl;
+                            }
+                            if (angles_per_node.find(int_angle)!=angles_per_node.end()){
+                                angles_per_node.erase((int_angle)); //does it work if the set already doesn't have the angle?
+                                std::cout<<int_angle<<", ";
+                            }
                         }
-                        angles_per_node.erase((int_angle)); //does it work if the set already doesn't have the angle?
                     }
                 }
+                //add the neighbor pointcloud to the viewer
+                std::stringstream ss;
+                ss<<"neighbor_" <<nodes[idx];
+                //random color
+                /*pcl::visualization::PointCloudColorHandlerRandom<pcl::PointXYZ> hc(neighbour_cloud);
+                viewer->addPointCloud (neighbour_cloud, hc, ss.str(), v2);
+                viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, ss.str());
+                viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_OPACITY,0.8, ss.str());*/
             }
+            std::cout<<std::endl;
 
             //now add this mapping between the supervoxel and the possible angles
             possible_angles.insert(std::pair<uint32_t, std::set<int>>(idx, angles_per_node));
@@ -660,113 +699,5 @@ void ShapeAnalyzer::refine_adjacency(){
         //great. Now add this to the visualizer so we can debug? for now it is very difficult
     }
 
-    //iterate over all the nodes and fill the list of possible angles
-    /*for(int i=0; i<centroids_ids.size(); i++){
-        //get the normal of this point
-        int pc_idx=supervoxel_to_pc_idx.at(centroids_ids[i]);
-        pcl::Normal n=all_normals_clouds->at(pc_idx);
-        //get also the centroid
-        pcl::PointXYZRGBA c=all_centroids_cloud->at(pc_idx);
-
-        //now make the reference frame with the normal as one axis:
-        Eigen::Vector3f nx, ny, nz;
-        nx<<n.normal_x, n.normal_y, n.normal_z;
-        if(fabs(nx(0))>0.00000001){
-            ny(1)=0;
-            ny(2)=sqrt(nx(0)*nx(0)/(nx(0)*nx(0)+nx(2)*nx(2)));
-            ny(0)=-nx(2)*ny(2)/nx(0);
-        }
-        else if(fabs(nx(1))>0.00000001){
-            ny(2)=0;
-            ny(0)=sqrt(nx(1)*nx(1)/(nx(1)*nx(1)+nx(0)*nx(0)));
-            ny(1)=-ny(0)*nx(0)/nx(1);
-        }
-        else{
-            ny(0)=0;
-            ny(1)=sqrt(nx(2)*nx(2)/(nx(1)*nx(1)+nx(2)*nx(2)));
-            ny(2)=-nx(1)*ny(1)/nx(2);
-        }
-        nz=nx.cross(ny);
-        //great. Now we can create a matrix to transform the pointcloud with this new reference frame
-        Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-        Eigen::Matrix3f R;
-        R(0,0)=nx.dot(x);
-        R(0,1)=nx.dot(y);
-        R(0,2)=nx.dot(z);
-
-        R(1,0)=ny.dot(x);
-        R(1,1)=ny.dot(y);
-        R(1,2)=ny.dot(z);
-
-        R(2,0)=nz.dot(x);
-        R(2,1)=nz.dot(y);
-        R(2,2)=nz.dot(z);
-
-        transform.block<3,1>(0,3)=-R*Eigen::Vector3f(c.x, c.y, c.z);
-        transform.block<3,3>(0,0)=R;
-
-        //std::cout<<"matrix: "<<std::endl<<transform<<std::endl;
-
-        //now apply the transformation to the pointcloud
-        pcl::transformPointCloud (*object_shape, *transformed_cloud, transform);
-
-        //now cut the pointcloud
-        /*pass.setInputCloud (transformed_cloud);
-        pass.setFilterFieldName ("x");
-        pass.setFilterLimits (-1, 1); //2 mm total 
-        pass.filter(*cloud_filtered);
-
-        pass.setInputCloud(cloud_filtered);
-        pass.setFilterFieldName("y");
-        pass.setFilterLimits (-l_finger-0.1, l_finger+0.1);
-        pass.filter(*transformed_cloud);
-
-        pass.setInputCloud(transformed_cloud);
-        pass.setFilterFieldName("z");
-        pass.setFilterLimits (-l_finger-0.1, l_finger+0.1); 
-        pass.filter(*cloud_filtered);
-
-        //remove inner part does not work and I don't know why
-        //stupid pcl
-
-        //use kdltree to create a sphere with all the neighbours and their respective distances
-        pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
-        kdtree.setInputCloud (transformed_cloud);
-        pcl::PointXYZ searchPoint;
-        searchPoint.x=searchPoint.y=searchPoint.z=0.0;
-        std::vector<int> pointIdxRadiusSearch; //to store index of surrounding points 
-        std::vector<float> pointRadiusSquaredDistance; // to store distance to surrounding points
-
-        if(kdtree.radiusSearch(searchPoint, l_finger+1.0, pointIdxRadiusSearch, pointRadiusSquaredDistance)>0){
-            for(int i=0; i<pointIdxRadiusSearch.size(); i++){
-                //check if the distance is larger
-                if(pointRadiusSquaredDistance[i]>=l_finger-1.0){
-                    //check the point and associate it with the corresponding angle
-                    //the x axis corresponds to the normal.
-
-                }
-            }
-        }
-        else{
-            //there is something wrong in the pointcloud. Assume that all the angles can be reached
-        }
-
-        //so now get all the points that are further away that l_finger and check what is the corresponding angle
-
-
-        //add to the visualizer for debug
-        viewer->addPointCloud (cloud_filtered, "transformed cloud");
-        viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, "transformed cloud");
-        viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_OPACITY, 1.0, "transformed cloud");
-
-        break;
-
-    }*/
-
-    //iterate over the adjacency map
-    //std::multimap<uint32_t,uint32_t>::iterator adjacent_itr=supervoxel_adjacency.equal_range(uint32_t(u)).first;
-    //for ( ; adjacent_itr!=supervoxel_adjacency.equal_range(uint32_t(u)).second; adjacent_itr++){
-        
-    //}
-    
+    //now visualize the new connections with the angles    
 }

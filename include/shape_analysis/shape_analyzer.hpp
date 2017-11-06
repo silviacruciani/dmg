@@ -28,6 +28,7 @@
 namespace shape_analysis{
     class ShapeAnalyzer{
         public:
+            EIGEN_MAKE_ALIGNED_OPERATOR_NEW
             ShapeAnalyzer();
             ~ShapeAnalyzer();
             void set_object_from_pointcloud(std::string file_name);
@@ -72,6 +73,11 @@ namespace shape_analysis{
             std::map <int, uint32_t> pc_to_supervoxel_idx;
             std::map <uint32_t, int> supervoxel_to_pc_idx;
             std::vector<uint32_t> centroids_ids;
+            //for the angle refinement:
+            std::map<uint32_t, std::set<int>> possible_angles; 
+            std::map<int, std::set<uint32_t>> connected_component_to_set_of_nodes;
+            std::map<uint32_t, int> nodes_to_connected_component;
+            std::map<int, Eigen::Vector3f> component_to_average_normal;
     };
 }
 
