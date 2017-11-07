@@ -20,7 +20,7 @@ int main(int argc, char *argv[]){
 
     ShapeAnalyzer a=ShapeAnalyzer();
     
-    a.set_object_from_pointcloud("/home/silvia/catkin_ws/src/shape_analysis/shapes/shape1_high_res.pcd");
+    a.set_object_from_pointcloud("/home/silvia/catkin_ws/src/shape_analysis/shapes/shape2_high_res.pcd");
 
     a.get_supervoxels();
 

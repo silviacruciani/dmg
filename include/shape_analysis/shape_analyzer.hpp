@@ -41,6 +41,7 @@ namespace shape_analysis{
             void compute_path(int finger_id);
             void set_finger_length(double l);
             void refine_adjacency(); //this checks for simple collisions with the gripper
+            void set_supervoxel_parameters(float voxel_res, float seed_res, float color_imp, float spatial_imp, float normal_imp, bool disable_transf);
 
         private:
             void addSupervoxelConnectionsToViewer(pcl::PointXYZRGBA &supervoxel_center,
@@ -78,6 +79,10 @@ namespace shape_analysis{
             std::map<int, std::set<uint32_t>> connected_component_to_set_of_nodes;
             std::map<uint32_t, int> nodes_to_connected_component;
             std::map<int, Eigen::Vector3f> component_to_average_normal;
+
+            //supervoxel parameters
+            bool disable_transform; //the transformation has to be disabled for organized pointclouds
+            float voxel_resolution, seed_resolution, color_importance, spatial_importance, normal_importance;
     };
 }
 

@@ -16,6 +16,13 @@ using namespace shape_analysis;
 
 ShapeAnalyzer::ShapeAnalyzer(){
     //object_shape=pcl::PointCloud<pcl::PointXYZ>::Ptr();
+    //set the default parameters
+    disable_transform=true; //the transformation has to be disabled for organized pointclouds
+    voxel_resolution=1.0;
+    seed_resolution=20.0;
+    color_importance=0.0;
+    spatial_importance=0.9;
+    normal_importance=1.0;
 }
 
 ShapeAnalyzer::~ShapeAnalyzer(){
@@ -77,15 +84,7 @@ void ShapeAnalyzer::spin_viewer(){
 }
 
 void ShapeAnalyzer::get_supervoxels(){
-    //get the parameters from somewhere. For now use default things
-    bool disable_transform=true; //the transformation has to be disabled for organized pointclouds
-    float voxel_resolution=1.0;
-    float seed_resolution =20.0;
-    float color_importance = 0.0;
-    float spatial_importance = 0.9;
-    float normal_importance = 1.0;
-
-    //now use the supervoxels
+    //use the supervoxels
     pcl::SupervoxelClustering<pcl::PointXYZRGBA> super(voxel_resolution, seed_resolution);
     if(disable_transform){
         super.setUseSingleCameraTransform (false);
@@ -601,7 +600,7 @@ void ShapeAnalyzer::refine_adjacency(){
         //for the translation, cicle through all the nodes in the component
         std::vector<uint32_t> nodes(connected_component_to_set_of_nodes.at(component).begin(), connected_component_to_set_of_nodes.at(component).end());
         for(int idx=0; idx<nodes.size(); idx++){
-            //std::cout<<"    node: "<<nodes[idx]<<std::endl;
+            std::cout<<"    node: "<<nodes[idx]<<std::endl;
             int pc_idx=supervoxel_to_pc_idx.at(nodes[idx]);
             pcl::PointXYZRGBA c=all_centroids_cloud->at(pc_idx);
             //transform.block<3,1>(0,3)=-R*Eigen::Vector3f(c.x, c.y, c.z);
@@ -700,4 +699,13 @@ void ShapeAnalyzer::refine_adjacency(){
     }
 
     //now visualize the new connections with the angles    
+}
+
+void ShapeAnalyzer::set_supervoxel_parameters(float voxel_res, float seed_res, float color_imp, float spatial_imp, float normal_imp, bool disable_transf){
+    voxel_resolution=voxel_res;
+    seed_resolution=seed_res;
+    color_importance=color_imp;
+    spatial_importance=spatial_imp;
+    normal_importance=normal_imp;
+    disable_transform=disable_transf;
 }
