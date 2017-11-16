@@ -10,6 +10,10 @@ add_compile_options(-std=c++11)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
+  std_msgs
+  geometry_msgs
+  message_generation
+  roslib
 )
 
 ## System dependencies are found with CMake's conventions
@@ -48,18 +52,19 @@ find_package(PCL 1.8 REQUIRED)
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-# add_message_files(
+#add_message_files(
 #   FILES
 #   Message1.msg
 #   Message2.msg
 # )
 
 ## Generate services in the 'srv' folder
-# add_service_files(
-#   FILES
+ add_service_files(
+   FILES
+   InHandPath.srv
 #   Service1.srv
 #   Service2.srv
-# )
+ )
 
 ## Generate actions in the 'action' folder
 # add_action_files(
@@ -69,10 +74,11 @@ find_package(PCL 1.8 REQUIRED)
 # )
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   std_msgs  # Or other packages containing msgs
-# )
+ generate_messages(
+   DEPENDENCIES
+   std_msgs  # Or other packages containing msgs
+   geometry_msgs
+  )
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -106,8 +112,8 @@ find_package(PCL 1.8 REQUIRED)
 catkin_package(
   INCLUDE_DIRS include
 #  LIBRARIES shape_analysis
-#  CATKIN_DEPENDS rocpp rospy
-  DEPENDS Eigen
+  CATKIN_DEPENDS roslib #rocpp rospy
+  DEPENDS Eigen message_runtime
 )
 
 ###########
@@ -140,6 +146,7 @@ add_library(shape_analyzer src/${PROJECT_NAME}/shape_analyzer.cpp)
 ## The recommended prefix ensures that target names across packages don't collide
 # add_executable(${PROJECT_NAME}_node src/shape_analysis_node.cpp)
 add_executable(shape_analysis src/shape_analysis.cpp)
+add_executable(in_hand_path_server src/in_hand_path_server.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -158,6 +165,7 @@ add_executable(shape_analysis src/shape_analysis.cpp)
 
 target_link_libraries(shape_analyzer ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${Eigen_LIBRARIES})
 target_link_libraries(shape_analysis shape_analyzer ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${Eigen_LIBRARIES})
+target_link_libraries(in_hand_path_server shape_analyzer ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${Eigen_LIBRARIES})
 
 #############
 ## Install ##

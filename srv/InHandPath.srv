@@ -1,0 +1,14 @@
+# This contains the initial contact point and the desired contact point on the object in the object reference frame, with the pose in quaternion
+# The output will be a sequence of translations (identified by a sequence of points to define the contact, minus the initial one) and a sequence of rotations
+# it also includes the index of the "master" contact point (0 or 1 for parallel gripper), and it also provides a sequence of distance variations between the translations
+# The execution should perform each rotation before the translation
+
+# The contact points are defined by a couple of points, in case of a parallel gripper
+
+geometry_msgs/Pose[] initial_grasp
+geometry_msgs/Pose[] desired_grasp
+---
+geometry_msgs/Point[] translations
+float64[] rotations
+uint16 master_index
+float64[] distance_variations

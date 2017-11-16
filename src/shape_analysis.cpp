@@ -21,7 +21,7 @@ int main(int argc, char *argv[]){
     ShapeAnalyzer a=ShapeAnalyzer();
     
     a.set_object_from_pointcloud("/home/silvia/catkin_ws/src/shape_analysis/shapes/shape2_high_res.pcd");
-    a.set_supervoxel_parameters(1.5, 15.0, 0.0, 1.0, 1.0, true); //try to find a way of defining them authomatically according to the dimension and resolution
+    a.set_supervoxel_parameters(1.5, 15.0, 0.0, 1.0, 1.0, true, 8); //try to find a way of defining them authomatically according to the dimension and resolution
 
     a.get_supervoxels();
 

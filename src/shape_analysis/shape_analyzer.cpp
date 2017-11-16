@@ -23,6 +23,7 @@ ShapeAnalyzer::ShapeAnalyzer(){
     color_importance=0.0;
     spatial_importance=0.9;
     normal_importance=1.0;
+    refinement_iterations=8;
 }
 
 ShapeAnalyzer::~ShapeAnalyzer(){
@@ -83,6 +84,16 @@ void ShapeAnalyzer::spin_viewer(){
 
 }
 
+void ShapeAnalyzer::spin_viewer_once(){
+    if(!viewer->wasStopped()){
+        viewer->spinOnce(1);
+    }
+    else{
+        viewer->close();
+    }
+
+}
+
 void ShapeAnalyzer::get_supervoxels(){
     //use the supervoxels
     pcl::SupervoxelClustering<pcl::PointXYZRGBA> super(voxel_resolution, seed_resolution);
@@ -101,7 +112,7 @@ void ShapeAnalyzer::get_supervoxels(){
     pcl::console::print_highlight ("Extracting supervoxels!\n");
     super.extract (supervoxel_clusters);
     pcl::console::print_info ("Found %d supervoxels. Refining...\n", supervoxel_clusters.size ());
-    super.refineSupervoxels(8, supervoxel_clusters);
+    super.refineSupervoxels(refinement_iterations, supervoxel_clusters);
     voxel_centroid_cloud=super.getVoxelCentroidCloud();
     std::cout<<"VoxelCentroidCloud size: "<<voxel_centroid_cloud->points.size()<<std::endl;
 
@@ -258,6 +269,7 @@ int ShapeAnalyzer::connect_centroid_to_contact(geometry_msgs::Point p, geometry_
         
         }
         if(render_sphere){
+            viewer->removeShape(id);
             viewer->addSphere(all_centroids_cloud->points[pointIdxNKNSearch[min_dist_idx]], 1, 0.0, 0.0, 1.0, id);
         }
     }
@@ -282,10 +294,13 @@ void ShapeAnalyzer::set_initial_contact(geometry_msgs::Point p, geometry_msgs::Q
 
     if(finger_id==1){
         initial_centroid_idx_1=connect_centroid_to_contact(p, q, "initial centroid "+std::to_string(finger_id), true);
+        desired_pose_1<<p.x, p.y, p.z, q.x, q.y, q.z, q.w;
     }
     else{
         initial_centroid_idx_2=connect_centroid_to_contact(p, q, "initial centroid "+std::to_string(finger_id), true);
+        desired_pose_2<<p.x, p.y, p.z, q.x, q.y, q.z, q.w;
     }
+    viewer->removeShape("initial contact "+std::to_string(finger_id));
     viewer->addCube(Eigen::Vector3f(input.x, input.y, input.z), Eigen::Quaternionf(q.x, q.y, q.z, q.w), 3, 3, 3, "initial contact "+std::to_string(finger_id));
     viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 0.0, 0.0, "initial contact "+std::to_string(finger_id));
     viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.3, "initial contact "+std::to_string(finger_id));
@@ -301,10 +316,13 @@ void ShapeAnalyzer::set_desired_contact(geometry_msgs::Point p, geometry_msgs::Q
 
     if(finger_id==1){
         desired_centroid_idx_1=connect_centroid_to_contact(p, q, "desired centroid "+std::to_string(finger_id), true);
+        initial_pose_1<<p.x, p.y, p.z, q.x, q.y, q.z, q.w;
     }
     else{
         desired_centroid_idx_2=connect_centroid_to_contact(p, q, "desired centroid "+std::to_string(finger_id), true);
+        initial_pose_2<<p.x, p.y, p.z, q.x, q.y, q.z, q.w;
     }
+    viewer->removeShape("desired contact "+std::to_string(finger_id));
     viewer->addCube(Eigen::Vector3f(input.x, input.y, input.z), Eigen::Quaternionf(q.x, q.y, q.z, q.w), 3, 3, 3, "desired contact "+std::to_string(finger_id));
     viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 1.0, 0.0, "desired contact "+std::to_string(finger_id));
     viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.3, "desired contact "+std::to_string(finger_id));
@@ -380,6 +398,12 @@ std::stack<int> ShapeAnalyzer::get_path(std::multimap<uint32_t,uint32_t> graph, 
 }
 
 void ShapeAnalyzer::compute_path(int finger_id){
+    //first of all, clear the previously drawn path
+    int max_line_id=translation_sequence.size()-1;
+    for(int i=0; i<=max_line_id; i++){
+        viewer->removeShape("line "+std::to_string(i));
+    }
+
     std::stack<int> S;
     std::vector<int> path;
     if(finger_id==1){
@@ -389,7 +413,7 @@ void ShapeAnalyzer::compute_path(int finger_id){
         S=get_path(supervoxel_adjacency, initial_centroid_idx_2, desired_centroid_idx_2);
     }
 
-    //then draw the lines to highligt the path
+    //then draw the lines to highligt the path and store the points to keep track of the necessary translations
     //get the first point
     int idx;
     pcl::PointXYZRGBA point1;
@@ -398,18 +422,40 @@ void ShapeAnalyzer::compute_path(int finger_id){
     S.pop();
     path.push_back(idx);
     point1=supervoxel_clusters.at(idx)->centroid_;
+    //variables to store the translation sequence
+    geometry_msgs::Point p1, p1Scaled;
+    p1.x=point1.x;
+    p1.y=point1.y;
+    p1.z=point1.z;
+    p1Scaled.x=point1.x/1000.0;
+    p1Scaled.y=point1.y/1000.0;
+    p1Scaled.z=point1.z/1000.0;
+    translation_sequence.push_back(p1Scaled);
+
     //get the new elements and draw the line
     int count=0;
     while(S.size()>0){
         idx=S.top();
         S.pop();
+        path.push_back(idx);
         point2=supervoxel_clusters.at(idx)->centroid_;
+        //store this in the translation sequence
+        geometry_msgs::Point p2, p2Scaled;
+        p2.x=point2.x;
+        p2.y=point2.y;
+        p2.z=point2.z;
+        p2Scaled.x=point2.x/1000.0;
+        p2Scaled.y=point2.y/1000.0;
+        p2Scaled.z=point2.z/1000.0;
+        translation_sequence.push_back(p2Scaled);
         viewer->addLine(point1, point2, 1, 1, 0, "line "+std::to_string(count));
         viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 2, "line "+std::to_string(count));
         count++;
         //std::cout<<"line drawn: "<<count<<std::endl;
         point1=point2;
-    }    
+    }  
+
+    compute_angle_sequence(path, finger_id);  
 }
 
 void ShapeAnalyzer::set_finger_length(double l){
@@ -637,7 +683,7 @@ void ShapeAnalyzer::refine_adjacency(){
 
             std::set<int> angles_per_node(all_angles);
 
-            std::cout<<"impossible angles: ";
+            std::cout<<"        impossible angles: ";
             if(kdtree.radiusSearch(searchPoint, l_finger+1.0, pointIdxRadiusSearch, pointRadiusSquaredDistance)>0){
                 pcl::PointCloud<pcl::PointXYZ>::Ptr neighbour_cloud(new pcl::PointCloud<pcl::PointXYZ>());
                 for(int i=0; i<pointIdxRadiusSearch.size(); i++){
@@ -692,7 +738,7 @@ void ShapeAnalyzer::refine_adjacency(){
             std::cout<<std::endl;
 
             //now add this mapping between the supervoxel and the possible angles
-            possible_angles.insert(std::pair<uint32_t, std::set<int>>(idx, angles_per_node));
+            possible_angles.insert(std::pair<uint32_t, std::set<int>>(nodes[idx], angles_per_node));
         }
 
         //great. Now add this to the visualizer so we can debug? for now it is very difficult
@@ -701,11 +747,166 @@ void ShapeAnalyzer::refine_adjacency(){
     //now visualize the new connections with the angles    
 }
 
-void ShapeAnalyzer::set_supervoxel_parameters(float voxel_res, float seed_res, float color_imp, float spatial_imp, float normal_imp, bool disable_transf){
+void ShapeAnalyzer::compute_angle_sequence(std::vector<int> path, int finger_id){
+    //get the desired angle from the desired pose (angle between the axiz z ("projected" on ny and nz) around nx, with ny being the 0 angle)
+    //obtain the rotation matrix to transform the pose into the nx ny nz reference frame:
+    Eigen::Matrix3f desired_gripper_to_base, initial_gripper_to_base, desired_component_to_base, initial_component_to_base;
+    Eigen::Quaternion<float> q1, q2;
+
+    //1) matrix from base frame to nx ny nz
+    //get the component of the initial contact
+    uint32_t initial_contact_index;
+    if(finger_id==1){
+        initial_contact_index=uint32_t(initial_centroid_idx_1);
+    }
+    else{
+        initial_contact_index=uint32_t(initial_centroid_idx_2);
+    }
+
+    int initial_contact_connected_component=nodes_to_connected_component.at(initial_contact_index);
+    Eigen::Vector3f component_normal=component_to_average_normal.at(initial_contact_connected_component);
+    Eigen::Vector3f nx, ny, nz;
+    nx=component_normal;
+    if(fabs(nx(0))>0.00000001){
+        ny(1)=0;
+        ny(2)=sqrt(nx(0)*nx(0)/(nx(0)*nx(0)+nx(2)*nx(2)));
+        ny(0)=-nx(2)*ny(2)/nx(0);
+    }
+    else if(fabs(nx(1))>0.00000001){
+        ny(2)=0;
+        ny(0)=sqrt(nx(1)*nx(1)/(nx(1)*nx(1)+nx(0)*nx(0)));
+        ny(1)=-ny(0)*nx(0)/nx(1);
+    }
+    else{
+        ny(0)=0;
+        ny(1)=sqrt(nx(2)*nx(2)/(nx(1)*nx(1)+nx(2)*nx(2)));
+        ny(2)=-nx(1)*ny(1)/nx(2);
+    }
+    nz=nx.cross(ny);
+
+    Eigen::Matrix3f component_to_base;
+    component_to_base(0,0)=nx(0);
+    component_to_base(0,1)=nx(1);
+    component_to_base(0,2)=nx(2);
+
+    component_to_base(1,0)=ny(0);
+    component_to_base(1,1)=ny(1);
+    component_to_base(1,2)=ny(2);
+
+    component_to_base(2,0)=nz(0);
+    component_to_base(2,1)=nz(1);
+    component_to_base(2,2)=nz(2);
+
+
+    //2) matrix from base to gripper pose
+    uint32_t desired_contact_index;
+    if(finger_id==1){
+        desired_contact_index=uint32_t(desired_centroid_idx_1);
+        q1=Eigen::Quaternion<float>(initial_pose_1(3), initial_pose_1(4), initial_pose_1(5), initial_pose_1(6));
+        q2=Eigen::Quaternion<float>(desired_pose_1(3), desired_pose_1(4), desired_pose_1(5), desired_pose_1(6));
+    }
+    else{
+        desired_contact_index=uint32_t(desired_centroid_idx_2);
+        q1=Eigen::Quaternion<float>(initial_pose_2(3), initial_pose_2(4), initial_pose_2(5), initial_pose_2(6));
+        q2=Eigen::Quaternion<float>(desired_pose_2(3), desired_pose_2(4), desired_pose_2(5), desired_pose_2(6));
+    }
+
+
+    initial_gripper_to_base=q1.toRotationMatrix();
+    desired_gripper_to_base=q2.toRotationMatrix();
+
+    //now get the vector Z' of the gripper expressed in the component's reference frame
+    Eigen::Matrix3f initial_gripper_to_component=component_to_base.transpose()*initial_gripper_to_base;
+    Eigen::Matrix3f desired_gripper_to_component=component_to_base.transpose()*desired_gripper_to_base;
+    //the last column of the matrix is the z vector. its projection on the nz ny plane are the second and third components
+    Eigen::Vector3f z_prime=initial_gripper_to_component.block<3, 1>(0, 2);
+    double initial_angle=atan2(z_prime(2), z_prime(1));
+    if (initial_angle<0){
+        initial_angle+=M_PI;
+    }
+    z_prime=desired_gripper_to_component.block<3, 1>(0, 2);
+    double desired_angle=atan2(z_prime(2), z_prime(1));
+    if (desired_angle<0){
+        desired_angle+=M_PI;
+    }
+
+    //convert this angle into degrees and with intervals of 5
+    initial_angle=initial_angle*180.0/M_PI;
+    desired_angle=desired_angle*180.0/M_PI;
+    double round_angle=initial_angle+5/2;
+    //convert in int
+    int int_initial_angle=floor(round_angle);
+    //convert from 360 to 0:
+    if(int_initial_angle==360){
+        int_initial_angle=0;
+    }
+    int_initial_angle=int_initial_angle-(int_initial_angle%5);
+    //same for desired angle
+    round_angle=desired_angle+5/2;
+    int int_desired_angle=floor(round_angle);
+    if(int_desired_angle==360){
+        int_desired_angle=0;
+    }
+    int_desired_angle=int_desired_angle-(int_desired_angle%5);
+
+    std::cout<<"Initial angle: "<<int_initial_angle<<std::endl;
+    std::cout<<"Desired angle: "<<int_desired_angle<<std::endl;
+
+    int index=path.size()-1;
+    std::cout<<"Index: "<<index<<std::endl;
+    //now cicle backwards the nodes to compute the sequence of angles
+    std::set<int> current_node_angles=possible_angles.at(desired_contact_index);
+    std::set<int> next_node_angles;
+    int current_angle=int_desired_angle;
+    //first of all check if it is possible. If it is not, well... the list of angles will be empty and the task is impossible to solve
+    if(current_node_angles.find(current_angle)==current_node_angles.end()){
+        std::cerr<<"The desired angle cannot be achieved."<<std::endl;
+        return;
+    }
+    //convert the angle back to double
+    angle_sequence.resize(path.size());
+    angle_sequence[index]=double(desired_angle)*M_PI/180.0;
+    index=index-1;
+    std::cout<<"Index: "<<index<<std::endl;
+    while(index>=0){
+        next_node_angles=current_node_angles;
+        current_node_angles=possible_angles.at(uint32_t(path[index]));
+        std::set<int> intersection;
+        std::set_intersection(current_node_angles.begin(), current_node_angles.end(), next_node_angles.begin(), next_node_angles.end(), std::inserter(intersection, intersection.begin()));
+        //check if the current angle is in the intersection (i.e. the translation can be with the gripper at this angle) 
+        if(intersection.find(current_angle)!=intersection.end()){
+            angle_sequence[index]=double(current_angle)*M_PI/180.0;
+        }
+        else{
+            if(intersection.size()==0){
+                std::cout<<"error"<<std::endl;
+                std::cerr<<"The intersection is empty! The adjacency is wrong."<<std::endl;
+            }
+            //in this case the element is random. Choose one that is closer to the one we already have
+            current_angle=*intersection.begin();
+            angle_sequence[index]=double(current_angle)*M_PI/180.0;
+        }
+        index=index-1;
+        std::cout<<"Index: "<<index<<std::endl;
+    }
+
+
+}
+
+void ShapeAnalyzer::set_supervoxel_parameters(float voxel_res, float seed_res, float color_imp, float spatial_imp, float normal_imp, bool disable_transf, int refinement_it){
     voxel_resolution=voxel_res;
     seed_resolution=seed_res;
     color_importance=color_imp;
     spatial_importance=spatial_imp;
     normal_importance=normal_imp;
     disable_transform=disable_transf;
+    refinement_iterations=refinement_it;
+}
+
+std::vector<geometry_msgs::Point> ShapeAnalyzer::get_translation_sequence(){
+    return translation_sequence;
+}
+
+std::vector<double> ShapeAnalyzer::get_angle_sequence(){
+    return angle_sequence;
 }
