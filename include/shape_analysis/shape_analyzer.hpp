@@ -54,7 +54,7 @@ namespace shape_analysis{
                                   int viewport);
             bool return_manipulation_sequence(); //create service file for this
             int connect_centroid_to_contact(geometry_msgs::Point p, geometry_msgs::Quaternion q, std::string id, bool render_sphere);
-            std::stack<int> get_path(std::multimap<uint32_t,uint32_t> graph, int init, int end);
+            std::stack<int> get_path(std::multimap<uint32_t,uint32_t> graph, int init, int end, Eigen::Vector3f grasp_line, int opposite_component);
             void compute_angle_sequence(std::vector<int> path, int finger_id);
             
             double l_finger;

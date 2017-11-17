@@ -328,7 +328,7 @@ void ShapeAnalyzer::set_desired_contact(geometry_msgs::Point p, geometry_msgs::Q
 
 }
 
-std::stack<int> ShapeAnalyzer::get_path(std::multimap<uint32_t,uint32_t> graph, int init, int goal){
+std::stack<int> ShapeAnalyzer::get_path(std::multimap<uint32_t,uint32_t> graph, int init, int goal, Eigen::Vector3f grasp_line, int opposite_component){
     std::cout<<"computing path from: "<<init<<" to "<<goal<<std::endl;
 
     //check if a path exists. i.e. the elements are in the connencted component:
@@ -337,6 +337,17 @@ std::stack<int> ShapeAnalyzer::get_path(std::multimap<uint32_t,uint32_t> graph, 
         std::stack<int> empty;
         return empty;
     }
+
+    //check the normal to the opposite_component
+    Eigen::Vector3f plane_normal=component_to_average_normal.at(nodes_to_connected_component.at(opposite_component));
+    Eigen::Vector3f l0, p0;
+    l0<<all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(uint32_t(init))).x, 
+        all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(uint32_t(init))).y, 
+        all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(uint32_t(init))).z;
+
+    p0<<all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(uint32_t(opposite_component))).x, 
+        all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(uint32_t(opposite_component))).y, 
+        all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(uint32_t(opposite_component))).z;
 
     //do graph search here
     //create the set of keys (vertices)
@@ -372,6 +383,18 @@ std::stack<int> ShapeAnalyzer::get_path(std::multimap<uint32_t,uint32_t> graph, 
                 //if this element is still in Q
                 //std::cout<<"current adjacent element "<<adjacent_itr->second<<std::endl;
                 if(Q.find(int(adjacent_itr->second))!=Q.end()){
+                    //compute the intersection between the opposite plane and the grasp line(assumed constant!)
+                    //l0 is the current considered point
+                    l0<<all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(adjacent_itr->second)).x, 
+                        all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(adjacent_itr->second)).y, 
+                        all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(adjacent_itr->second)).z;
+                    double alpha=-(l0-p0).dot(plane_normal)/(grasp_line.dot(plane_normal));
+                    Eigen::Vector3f intersection_point=alpha*grasp_line+l0;
+                    //now find the nearest centroid to this point, and check if it belongs to the same connected component(be sure to check that this node IS associaded to a component first)
+
+
+
+                    //the distance can be modified by the opposite finger if it is not in the same connected component
                     double alt=dist[u]+1.0; //all the edges assumed at distance 1
                     if(alt<dist[int(adjacent_itr->second)]){
                         //a new shortest path has been found
@@ -411,13 +434,29 @@ void ShapeAnalyzer::compute_path(int finger_id){
         viewer->removeShape("line "+std::to_string(i));
     }
 
+    //compute the line between the two contact points;
+    Eigen::Vector3f grasp_point1, grasp_point2, grasp_line;
+    grasp_point1<<initial_pose_1(0, 0), initial_pose_1(1, 0), initial_pose_1(2, 0);
+    grasp_point2<<initial_pose_2(0, 0), initial_pose_2(1, 0), initial_pose_2(2, 0);
+    grasp_line=grasp_point2-grasp_point1;
+    grasp_line.normalize();
+    //check if the desired contact is valid
+    grasp_point1<<desired_pose_1(0, 0), desired_pose_1(1, 0), desired_pose_1(2, 0);
+    grasp_point2<<desired_pose_2(0, 0), desired_pose_2(1, 0), desired_pose_2(2, 0);
+    Eigen::Vector3f desired_grasp_line=grasp_point2-grasp_point1;
+    desired_grasp_line.normalize();
+    if(fabs((grasp_line-desired_grasp_line).norm())>0.1){
+        std::cout<<"Wrong final pose. Rotation around different axes could be required."<<std::endl;
+        return;
+    }
+
     std::stack<int> S;
     std::vector<int> path;
     if(finger_id==1){
-        S=get_path(refined_adjacency, initial_centroid_idx_1, desired_centroid_idx_1);
+        S=get_path(refined_adjacency, initial_centroid_idx_1, desired_centroid_idx_1, grasp_line, initial_centroid_idx_2);
     }
     else{
-        S=get_path(refined_adjacency, initial_centroid_idx_2, desired_centroid_idx_2);
+        S=get_path(refined_adjacency, initial_centroid_idx_2, desired_centroid_idx_2, -grasp_line, initial_centroid_idx_1);
     }
 
     if(S.size()<1){
