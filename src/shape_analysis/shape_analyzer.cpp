@@ -47,7 +47,7 @@ void ShapeAnalyzer::set_object_from_pointcloud(std::string file_name){
     v1=v;
     viewer->createViewPort (0.0, 0.0, 0.5, 1.0, v1);
     viewer->setBackgroundColor(0, 0, 0, v1);
-    viewer->addCoordinateSystem(1.0);
+    viewer->addCoordinateSystem(15.0);
     viewer->initCameraParameters();
     viewer->addText ("supervoxels and adjacency", 10, 10, "v1 text", v1);
     //viewer for debug
@@ -129,7 +129,6 @@ void ShapeAnalyzer::get_supervoxels(){
     sv_normal_cloud = super.makeSupervoxelNormalCloud (supervoxel_clusters);
     std::cout<<"VoxelNormalCloud size: "<<sv_normal_cloud->points.size()<<std::endl;
     viewer->addPointCloudNormals<pcl::PointNormal> (sv_normal_cloud,1, 5.0, "supervoxel_normals", v1);
-
 
     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr centroids_cloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
     pcl::PointCloud<pcl::Normal>::Ptr normals_cloud(new pcl::PointCloud<pcl::Normal>);
@@ -331,6 +330,14 @@ void ShapeAnalyzer::set_desired_contact(geometry_msgs::Point p, geometry_msgs::Q
 
 std::stack<int> ShapeAnalyzer::get_path(std::multimap<uint32_t,uint32_t> graph, int init, int goal){
     std::cout<<"computing path from: "<<init<<" to "<<goal<<std::endl;
+
+    //check if a path exists. i.e. the elements are in the connencted component:
+    if(nodes_to_connected_component.at(init)!=nodes_to_connected_component.at(goal)){
+        std::cout<<"The nodes are not connected. Regrasping is needed."<<std::endl;
+        std::stack<int> empty;
+        return empty;
+    }
+
     //do graph search here
     //create the set of keys (vertices)
     std::set<uint32_t> Q;
@@ -360,8 +367,8 @@ std::stack<int> ShapeAnalyzer::get_path(std::multimap<uint32_t,uint32_t> graph, 
         //check if the element found is the goal
         if(u!=goal){
             //loop over all the neighbours of u
-            std::multimap<uint32_t,uint32_t>::iterator adjacent_itr=supervoxel_adjacency.equal_range(uint32_t(u)).first;
-            for ( ; adjacent_itr!=supervoxel_adjacency.equal_range(uint32_t(u)).second; adjacent_itr++){
+            std::multimap<uint32_t,uint32_t>::iterator adjacent_itr=graph.equal_range(uint32_t(u)).first;
+            for ( ; adjacent_itr!=graph.equal_range(uint32_t(u)).second; adjacent_itr++){
                 //if this element is still in Q
                 //std::cout<<"current adjacent element "<<adjacent_itr->second<<std::endl;
                 if(Q.find(int(adjacent_itr->second))!=Q.end()){
@@ -407,10 +414,14 @@ void ShapeAnalyzer::compute_path(int finger_id){
     std::stack<int> S;
     std::vector<int> path;
     if(finger_id==1){
-        S=get_path(supervoxel_adjacency, initial_centroid_idx_1, desired_centroid_idx_1);
+        S=get_path(refined_adjacency, initial_centroid_idx_1, desired_centroid_idx_1);
     }
     else{
-        S=get_path(supervoxel_adjacency, initial_centroid_idx_2, desired_centroid_idx_2);
+        S=get_path(refined_adjacency, initial_centroid_idx_2, desired_centroid_idx_2);
+    }
+
+    if(S.size()<1){
+        return;
     }
 
     //then draw the lines to highligt the path and store the points to keep track of the necessary translations
@@ -448,7 +459,7 @@ void ShapeAnalyzer::compute_path(int finger_id){
         p2Scaled.y=point2.y/1000.0;
         p2Scaled.z=point2.z/1000.0;
         translation_sequence.push_back(p2Scaled);
-        viewer->addLine(point1, point2, 1, 1, 0, "line "+std::to_string(count));
+        viewer->addLine(point1, point2, 0, 1, 0, "line "+std::to_string(count));
         viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 2, "line "+std::to_string(count));
         count++;
         //std::cout<<"line drawn: "<<count<<std::endl;
@@ -520,10 +531,11 @@ void ShapeAnalyzer::refine_adjacency(){
     label_itr=refined_adjacency.begin();
     int component_id=-1;
     for ( ; label_itr!=refined_adjacency.end();) {
+        //std::cout<<"++++++++++++++++++++++++++++++"<<std::endl;
         //get the supervoxel id
         uint32_t supervoxel_label = label_itr->first;
         if(!(examined_nodes.find(supervoxel_label)!=examined_nodes.end())){
-            //this node had not been analyzed before!
+            //this node had not been analyzed before! It means it is a new connected component
             component_id++;
             int num_components=0;
             Eigen::Vector3f sum_normal;
@@ -533,6 +545,7 @@ void ShapeAnalyzer::refine_adjacency(){
             reference_normal<<supervoxel_clusters.at(supervoxel_label)->normal_.normal_x,
                         supervoxel_clusters.at(supervoxel_label)->normal_.normal_y,
                         supervoxel_clusters.at(supervoxel_label)->normal_.normal_z;
+            //std::cout<<"reference normal: "<<reference_normal.transpose()<<std::endl;
 
             //now start a dfs visit of all the nodes that can be reached from here!
             std::set<uint32_t> discovered_nodes;
@@ -550,16 +563,25 @@ void ShapeAnalyzer::refine_adjacency(){
                     normal<<supervoxel_clusters.at(v)->normal_.normal_x,
                         supervoxel_clusters.at(v)->normal_.normal_y,
                         supervoxel_clusters.at(v)->normal_.normal_z;
+
                     //check if the normal has not a huge discordance:
-                    if((reference_normal-normal).norm()<0.03){
+                    //if((reference_normal-normal).squaredNorm()<0.07){
+                    if((reference_normal-normal).squaredNorm()<=(reference_normal+normal).squaredNorm()){
                         //average the normal
                         sum_normal=sum_normal+normal;
                         num_components++;
+                        //std::cout<<"normals+: "<<normal.transpose()<<std::endl;
+                        //std::cout<<"    diff+: "<<(reference_normal-normal).squaredNorm()<<std::endl;
+                        //std::cout<<"    sum: "<<sum_normal.transpose()<<std::endl;
                     }
                     else{
                         //average the normal but change sign
                         sum_normal=sum_normal-normal;
                         num_components++;
+                        //std::cout<<"normals-: "<<normal.transpose()<<std::endl;
+                        //std::cout<<"    diff+: "<<(reference_normal-normal).squaredNorm()<<std::endl;
+                        //std::cout<<"    diff-: "<<(reference_normal+normal).squaredNorm()<<std::endl;
+                        //std::cout<<"    sum: "<<sum_normal.transpose()<<std::endl;
                     }                    
 
                     //now get all the adjacent nodes
@@ -572,6 +594,8 @@ void ShapeAnalyzer::refine_adjacency(){
 
             //now get the average normal
             Eigen::Vector3f average_normal=sum_normal/num_components;
+            average_normal.normalize();
+            //std::cout<<"----average:  "<<average_normal.transpose()<<std::endl;
             component_to_average_normal.insert(std::pair<int, Eigen::Vector3f>(component_id, average_normal));
             connected_component_to_set_of_nodes.insert(std::pair<int, std::set<uint32_t>>(component_id, discovered_nodes));
         }
@@ -603,11 +627,14 @@ void ShapeAnalyzer::refine_adjacency(){
 
     pcl::PassThrough<pcl::PointXYZ> pass;
 
+    bool done=false;
+
     for(int component=0; component<=component_id; component++){
         std::cout<<"component: "<<component<<std::endl;
         //get the average normal of the component:
         Eigen::Vector3f nx, ny, nz;
         nx=component_to_average_normal.at(component);
+        //std::cout<<"========AVERAGE NORMAL: "<<nx.transpose()<<std::endl;
         if(fabs(nx(0))>0.00000001){
             ny(1)=0;
             ny(2)=sqrt(nx(0)*nx(0)/(nx(0)*nx(0)+nx(2)*nx(2)));
@@ -629,7 +656,7 @@ void ShapeAnalyzer::refine_adjacency(){
 
         //great. Now we can create a matrix to transform the pointcloud with this new reference frame
         //Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-        Eigen::Matrix3f R;
+        Eigen::Matrix3f R, R_transpose;
         R(0,0)=nx.dot(x);
         R(0,1)=nx.dot(y);
         R(0,2)=nx.dot(z);
@@ -642,13 +669,17 @@ void ShapeAnalyzer::refine_adjacency(){
         R(2,1)=nz.dot(y);
         R(2,2)=nz.dot(z);
 
+        R_transpose=R.transpose();
+
+
         /*transform.block<3,3>(0,0)=R;*/
         //for the translation, cicle through all the nodes in the component
         std::vector<uint32_t> nodes(connected_component_to_set_of_nodes.at(component).begin(), connected_component_to_set_of_nodes.at(component).end());
         for(int idx=0; idx<nodes.size(); idx++){
-            std::cout<<"    node: "<<nodes[idx]<<std::endl;
+            //std::cout<<"    node: "<<nodes[idx]<<std::endl;
             int pc_idx=supervoxel_to_pc_idx.at(nodes[idx]);
             pcl::PointXYZRGBA c=all_centroids_cloud->at(pc_idx);
+            //std::cout<<"===point normal: "<<supervoxel_clusters.at(nodes[idx])->normal_.normal_x<<" "<<supervoxel_clusters.at(nodes[idx])->normal_.normal_y<< " "<<supervoxel_clusters.at(nodes[idx])->normal_.normal_z<<std::endl;
             //transform.block<3,1>(0,3)=-R*Eigen::Vector3f(c.x, c.y, c.z);
             //now we can transform the pointcloud and filter it
 
@@ -678,31 +709,42 @@ void ShapeAnalyzer::refine_adjacency(){
             searchPoint.x=c.x;
             searchPoint.y=c.y;
             searchPoint.z=c.z;
+            //vector for the transform
+            Eigen::Vector3f translation=-R*Eigen::Vector3f(c.x,c.y,c.z);
             std::vector<int> pointIdxRadiusSearch; //to store index of surrounding points 
             std::vector<float> pointRadiusSquaredDistance; // to store distance to surrounding points
 
             std::set<int> angles_per_node(all_angles);
 
             std::cout<<"        impossible angles: ";
-            if(kdtree.radiusSearch(searchPoint, l_finger+1.0, pointIdxRadiusSearch, pointRadiusSquaredDistance)>0){
+            if(kdtree.radiusSearch(searchPoint, l_finger+3.0, pointIdxRadiusSearch, pointRadiusSquaredDistance)>0){
                 pcl::PointCloud<pcl::PointXYZ>::Ptr neighbour_cloud(new pcl::PointCloud<pcl::PointXYZ>());
                 for(int i=0; i<pointIdxRadiusSearch.size(); i++){
                     //check if the distance is larger
-                    if(pointRadiusSquaredDistance[i]>=l_finger*l_finger){
+                    if(pointRadiusSquaredDistance[i]>=(l_finger-2.0)*(l_finger-2.0)){
                         //create a 3D vector:
                         Eigen::Vector3f point;
                         point<<object_shape->at(pointIdxRadiusSearch[i]).x, object_shape->at(pointIdxRadiusSearch[i]).y, object_shape->at(pointIdxRadiusSearch[i]).z;
-                        Eigen::Vector3f transformed_point=R*point;
+                        Eigen::Vector3f transformed_point=R*point+translation;
                         //use the coordinates of the point in the normal reference frame to compute the elevation
-                        double elevation=asin(transformed_point(0)/sqrt(pointRadiusSquaredDistance[i]));
+                        //double elevation=asin(transformed_point(0)/sqrt(pointRadiusSquaredDistance[i]));
                         //now check if the elevation is in the defined interval:
-                        if(fabs(elevation)<0.1){ //10 degrees total
+                        //if(fabs(elevation)<0.1){ //10 degrees total
                             //std::cout<<"point: "<<transformed_point.transpose()<<std::endl;
+
+                        //check the x coordinate to filter out some of these
+                        if(fabs(transformed_point(0))<l_finger/4.0){
                             //add the point to the poincloud for debug
+
                             neighbour_cloud->push_back(object_shape->at(pointIdxRadiusSearch[i]));
+
                             //check the point and associate it with the corresponding angle
                             //the x axis corresponds to the normal. the ny axis corresponds to the 0 angle
                             double angle=atan2(transformed_point(2), transformed_point(1));
+                            //move it between 0 and 2 pi
+                            if(angle<0){
+                                angle=angle+2*M_PI;
+                            }
                             //convert the angle into degrees:
                             angle=angle*180.0/M_PI;
                             //std::cout<<"    angle: "<<angle<<std::endl;
@@ -720,20 +762,34 @@ void ShapeAnalyzer::refine_adjacency(){
                                 std::cout<<"ERROR IN THE ROUNDING TO 5"<<std::endl;
                             }
                             if (angles_per_node.find(int_angle)!=angles_per_node.end()){
-                                angles_per_node.erase((int_angle)); //does it work if the set already doesn't have the angle?
+                                if(false){
+                                    viewer->addSphere(object_shape->at(pointIdxRadiusSearch[i]), 1, 0.0, 0.0, 0.6, "anglesphere"+std::to_string(int_angle)+"_"+std::to_string(nodes[idx]), v2);
+                                }
+                                angles_per_node.erase((int_angle)); 
                                 std::cout<<int_angle<<", ";
                             }
                         }
                     }
                 }
-                //add the neighbor pointcloud to the viewer
-                std::stringstream ss;
-                ss<<"neighbor_" <<nodes[idx];
-                //random color
-                /*pcl::visualization::PointCloudColorHandlerRandom<pcl::PointXYZ> hc(neighbour_cloud);
-                viewer->addPointCloud (neighbour_cloud, hc, ss.str(), v2);
-                viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, ss.str());
-                viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_OPACITY,0.8, ss.str());*/
+                if(false){
+                    //std::cout<<"=================== node: "<<nodes[idx]<<std::endl;
+                    //add the neighbor pointcloud to the viewer
+                    std::stringstream ss;
+                    ss<<"neighbor_" <<nodes[idx];
+                    //random color
+                    pcl::visualization::PointCloudColorHandlerRandom<pcl::PointXYZ> hc(neighbour_cloud);
+                    viewer->addPointCloud (neighbour_cloud, hc, ss.str(), v2);
+                    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, ss.str());
+                    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_OPACITY,0.8, ss.str());
+                    //viewer->addSphere(supervoxel_clusters.at(nodes[idx])->centroid_, 1, 0.0, 0.0, 1.0, "sphere"+std::to_string(nodes[idx]), v2);
+                    Eigen::Matrix4f transf=Eigen::Matrix4f::Identity();
+                    transf.block<3, 3>(0, 0)=R_transpose;
+                    transf.block<3,1>(0, 3)=Eigen::Vector3f(c.x,c.y,c.z);
+                    Eigen::Affine3f aff;
+                    aff.matrix()=transf;
+                    //viewer->addCoordinateSystem(3.0, aff, "normals ", v2);
+                    //done=true;
+                }
             }
             std::cout<<std::endl;
 
@@ -741,7 +797,6 @@ void ShapeAnalyzer::refine_adjacency(){
             possible_angles.insert(std::pair<uint32_t, std::set<int>>(nodes[idx], angles_per_node));
         }
 
-        //great. Now add this to the visualizer so we can debug? for now it is very difficult
     }
     //now further refine the adjacency by removing all the impossible connections and impossible vertices
     std::cout<<"Refining the adjacency list according to the possible angles"<<std::endl;
@@ -865,12 +920,12 @@ void ShapeAnalyzer::compute_angle_sequence(std::vector<int> path, int finger_id)
     Eigen::Vector3f z_prime=initial_gripper_to_component.block<3, 1>(0, 2);
     double initial_angle=atan2(z_prime(2), z_prime(1));
     if (initial_angle<0){
-        initial_angle+=M_PI;
+        initial_angle+=2*M_PI;
     }
     z_prime=desired_gripper_to_component.block<3, 1>(0, 2);
     double desired_angle=atan2(z_prime(2), z_prime(1));
     if (desired_angle<0){
-        desired_angle+=M_PI;
+        desired_angle+=2*M_PI;
     }
 
     //convert this angle into degrees and with intervals of 5
@@ -903,7 +958,7 @@ void ShapeAnalyzer::compute_angle_sequence(std::vector<int> path, int finger_id)
     int current_angle=int_desired_angle;
     //first of all check if it is possible. If it is not, well... the list of angles will be empty and the task is impossible to solve
     if(current_node_angles.find(current_angle)==current_node_angles.end()){
-        std::cerr<<"The desired angle cannot be achieved."<<std::endl;
+        std::cout<<"The desired angle cannot be achieved."<<std::endl;
         return;
     }
     //convert the angle back to double
@@ -923,7 +978,7 @@ void ShapeAnalyzer::compute_angle_sequence(std::vector<int> path, int finger_id)
         else{
             if(intersection.size()==0){
                 std::cout<<"error"<<std::endl;
-                std::cerr<<"The intersection is empty! The adjacency is wrong."<<std::endl;
+                std::cout<<"The intersection is empty! The adjacency is wrong."<<std::endl;
             }
             //in this case the element is random. Choose one that is closer to the one we already have
             current_angle=*intersection.begin();
