@@ -743,6 +743,49 @@ void ShapeAnalyzer::refine_adjacency(){
 
         //great. Now add this to the visualizer so we can debug? for now it is very difficult
     }
+    //now further refine the adjacency by removing all the impossible connections and impossible vertices
+    std::cout<<"Refining the adjacency list according to the possible angles"<<std::endl;
+    //loop on all the connected components
+    std::multimap<uint32_t, uint32_t> angles_refined_adjacency;
+    for(int component=0; component<=component_id; component++){
+        //get all the nodes in the component:
+        std::set<uint32_t> nodes_set=connected_component_to_set_of_nodes.at(component);
+        //now loop on all the nodes and check if their connections (or the node itself) have to be removed from the connected component
+        for(std::set<uint32_t>::iterator it=nodes_set.begin(); it!=nodes_set.end(); it++){
+            std::set<int> node_angles=possible_angles.at(*it);
+            //if this node has no possible angles, it will be removed from the connected component and not added to the new adjacency map
+            uint32_t node=*it;
+            if(node_angles.size()<1){
+                connected_component_to_set_of_nodes.at(component).erase(node);
+                nodes_to_connected_component.erase(node);
+            }
+            else{
+                pcl::PointXYZRGBA node_center=supervoxel_clusters.at(node)->centroid_;
+                pcl::PointCloud<pcl::PointXYZRGBA> adjacent_supervoxel_centers;
+                //now loop over all the components
+                std::multimap<uint32_t,uint32_t>::iterator adjacent_itr=refined_adjacency.equal_range(node).first;
+                for ( ; adjacent_itr!=refined_adjacency.equal_range(node).second; adjacent_itr++){
+                    //get the intersection between the two 
+                    std::set<int> angles_intersection;
+                    std::set_intersection(node_angles.begin(), node_angles.end(), possible_angles.at(adjacent_itr->second).begin(), possible_angles.at(adjacent_itr->second).end(), std::inserter(angles_intersection, angles_intersection.begin()));
+                    if(angles_intersection.size()>0){
+                        angles_refined_adjacency.insert(std::pair<uint32_t, uint32_t>(node, adjacent_itr->second));
+                        adjacent_supervoxel_centers.push_back(supervoxel_clusters.at(adjacent_itr->second)->centroid_);
+                    }
+                }
+
+                //now draw this poligon(different color to compare)
+                std::stringstream ss;
+                ss << "angles_refined_supervoxel_" << node;
+                //This function is shown below, but is beyond the scope of this tutorial - basically it just generates a "star" polygon mesh from the points given
+                addSupervoxelConnectionsToViewer(node_center, adjacent_supervoxel_centers, ss.str(), viewer, v2);
+                //now change the color of the new shape
+                viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 1, 1, 0, ss.str(), v2);
+            }
+        }
+    }
+    //assign the new adjacency
+    refined_adjacency=angles_refined_adjacency;
 
     //now visualize the new connections with the angles    
 }
