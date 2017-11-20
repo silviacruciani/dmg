@@ -391,11 +391,36 @@ std::stack<int> ShapeAnalyzer::get_path(std::multimap<uint32_t,uint32_t> graph, 
                     double alpha=-(l0-p0).dot(plane_normal)/(grasp_line.dot(plane_normal));
                     Eigen::Vector3f intersection_point=alpha*grasp_line+l0;
                     //now find the nearest centroid to this point, and check if it belongs to the same connected component(be sure to check that this node IS associaded to a component first)
+                    int K = 3;//three nearest neighbours
+                    std::vector<int> pointIdxNKNSearch(K);
+                    std::vector<float> pointNKNSquaredDistance(K);
+                    //improve this distance according to the change in notmal (TO DO)
+                    double slave_dist=100;
+                    pcl::PointXYZRGBA input;
+                    input.x=intersection_point(0);
+                    input.y=intersection_point(1);
+                    input.z=intersection_point(2);
 
+                    //std::cout<<"Checking the opposite component."<<std::endl;
+
+                    if (centroids_kdtree.nearestKSearch(input, K, pointIdxNKNSearch, pointNKNSquaredDistance)> 0){
+                        for (size_t i = 0; i < pointIdxNKNSearch.size (); ++i){
+                            //search for one component in the default connected component
+                            if(nodes_to_connected_component.at(pc_to_supervoxel_idx.at(pointIdxNKNSearch[i]))==nodes_to_connected_component.at(opposite_component)){
+                                slave_dist=0;
+                                //std::cout<<"The slave contact is in the connected component."<<std::endl;
+                                break;
+                            }
+                        }
+                    }
+                    else{
+                        //there is something very wrong
+                        std::cout<<"ERROR: cold not associate slave contact to centroid"<<std::endl;
+                    }
 
 
                     //the distance can be modified by the opposite finger if it is not in the same connected component
-                    double alt=dist[u]+1.0; //all the edges assumed at distance 1
+                    double alt=dist[u]+1.0+slave_dist; //all the edges assumed at distance 1
                     if(alt<dist[int(adjacent_itr->second)]){
                         //a new shortest path has been found
                         dist[int(adjacent_itr->second)]=alt;
