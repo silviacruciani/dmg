@@ -293,14 +293,19 @@ void ShapeAnalyzer::set_initial_contact(geometry_msgs::Point p, geometry_msgs::Q
 
     if(finger_id==1){
         initial_centroid_idx_1=connect_centroid_to_contact(p, q, "initial centroid "+std::to_string(finger_id), true);
-        desired_pose_1<<p.x, p.y, p.z, q.x, q.y, q.z, q.w;
+        initial_pose_1<<p.x, p.y, p.z, q.x, q.y, q.z, q.w;
     }
     else{
         initial_centroid_idx_2=connect_centroid_to_contact(p, q, "initial centroid "+std::to_string(finger_id), true);
-        desired_pose_2<<p.x, p.y, p.z, q.x, q.y, q.z, q.w;
+        initial_pose_2<<p.x, p.y, p.z, q.x, q.y, q.z, q.w;
     }
     viewer->removeShape("initial contact "+std::to_string(finger_id));
-    viewer->addCube(Eigen::Vector3f(input.x, input.y, input.z), Eigen::Quaternionf(q.x, q.y, q.z, q.w), 3, 3, 3, "initial contact "+std::to_string(finger_id));
+    Eigen::Vector3f cube_pos(input.x, input.y, input.z);
+    Eigen::Quaternionf cube_or(q.w, q.x, q.y, q.z);
+    Eigen::Matrix3f cube_rot_matrix=cube_or.toRotationMatrix();
+    //std::cout<<"matrix: "<<std::endl<<cube_rot_matrix<<std::endl;
+    cube_pos=cube_pos+cube_rot_matrix*Eigen::Vector3f(-l_finger/2+1.5, 0, 0);
+    viewer->addCube(cube_pos, cube_or, l_finger, 3, 3, "initial contact "+std::to_string(finger_id));
     viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 0.0, 0.0, "initial contact "+std::to_string(finger_id));
     viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.3, "initial contact "+std::to_string(finger_id));
 
@@ -315,14 +320,18 @@ void ShapeAnalyzer::set_desired_contact(geometry_msgs::Point p, geometry_msgs::Q
 
     if(finger_id==1){
         desired_centroid_idx_1=connect_centroid_to_contact(p, q, "desired centroid "+std::to_string(finger_id), true);
-        initial_pose_1<<p.x, p.y, p.z, q.x, q.y, q.z, q.w;
+        desired_pose_1<<p.x, p.y, p.z, q.x, q.y, q.z, q.w;
     }
     else{
         desired_centroid_idx_2=connect_centroid_to_contact(p, q, "desired centroid "+std::to_string(finger_id), true);
-        initial_pose_2<<p.x, p.y, p.z, q.x, q.y, q.z, q.w;
+        desired_pose_2<<p.x, p.y, p.z, q.x, q.y, q.z, q.w;
     }
     viewer->removeShape("desired contact "+std::to_string(finger_id));
-    viewer->addCube(Eigen::Vector3f(input.x, input.y, input.z), Eigen::Quaternionf(q.x, q.y, q.z, q.w), 3, 3, 3, "desired contact "+std::to_string(finger_id));
+    Eigen::Vector3f cube_pos(input.x, input.y, input.z);
+    Eigen::Quaternionf cube_or(q.w, q.x, q.y, q.z);
+    Eigen::Matrix3f cube_rot_matrix=cube_or.toRotationMatrix();
+    cube_pos=cube_pos+cube_rot_matrix*Eigen::Vector3f(-l_finger/2+1.5, 0, 0);
+    viewer->addCube(cube_pos, cube_or, l_finger, 3, 3, "desired contact "+std::to_string(finger_id));
     viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 1.0, 0.0, "desired contact "+std::to_string(finger_id));
     viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.3, "desired contact "+std::to_string(finger_id));
 
@@ -406,11 +415,18 @@ std::stack<int> ShapeAnalyzer::get_path(std::multimap<uint32_t,uint32_t> graph, 
                     if (centroids_kdtree.nearestKSearch(input, K, pointIdxNKNSearch, pointNKNSquaredDistance)> 0){
                         for (size_t i = 0; i < pointIdxNKNSearch.size (); ++i){
                             //search for one component in the default connected component
+                            std::cout<<"HERE"<<std::endl;
+                            std::cout<<"supervoxel id of initial: "<<opposite_component<<std::endl;
+                            std::cout<<"supervoxel id of nearest: "<<pc_to_supervoxel_idx.at(pointIdxNKNSearch[i])<<std::endl;
+                            std::cout<<"connected component of initial: "<<nodes_to_connected_component.at(opposite_component)<<std::endl;
+                            std::cout<<"connected component of nearest: "<<nodes_to_connected_component.at(pc_to_supervoxel_idx.at(pointIdxNKNSearch[i]))<<std::endl;
                             if(nodes_to_connected_component.at(pc_to_supervoxel_idx.at(pointIdxNKNSearch[i]))==nodes_to_connected_component.at(opposite_component)){
                                 slave_dist=0;
                                 //std::cout<<"The slave contact is in the connected component."<<std::endl;
                                 break;
                             }
+                            std::cout<<"999999"<<std::endl;
+
                         }
                     }
                     else{
@@ -497,6 +513,7 @@ void ShapeAnalyzer::compute_path(int finger_id){
     S.pop();
     path.push_back(idx);
     point1=supervoxel_clusters.at(idx)->centroid_;
+
     //variables to store the translation sequence
     geometry_msgs::Point p1, p1Scaled;
     p1.x=point1.x;
@@ -549,10 +566,12 @@ void ShapeAnalyzer::refine_adjacency(){
     for ( ; label_itr!=supervoxel_adjacency.end();) {
         //First get the label
         uint32_t supervoxel_label = label_itr->first;
+        //std::cout<<"before refining, current: "<<supervoxel_label<<std::endl;
         //Now get the supervoxel corresponding to the label
         pcl::Supervoxel<pcl::PointXYZRGBA>::Ptr supervoxel=supervoxel_clusters.at (supervoxel_label);
         //now get the normal of this supervoxel
         pcl::Normal supervoxel_normal=supervoxel->normal_;
+        //std::cout<<"current normal: "<<supervoxel_normal.normal_x<<" "<<supervoxel_normal.normal_y<<" "<<supervoxel_normal.normal_z<<std::endl<<std::endl;
 
         //Now we need to iterate through the adjacent supervoxels to check their normals
         pcl::PointCloud<pcl::PointXYZRGBA> adjacent_supervoxel_centers; //this will be used for debug
@@ -560,10 +579,12 @@ void ShapeAnalyzer::refine_adjacency(){
         for ( ; adjacent_itr!=supervoxel_adjacency.equal_range(supervoxel_label).second; adjacent_itr++){
             pcl::Supervoxel<pcl::PointXYZRGBA>::Ptr neighbor_supervoxel=supervoxel_clusters.at(adjacent_itr->second);
             pcl::Normal adjacent_normal=neighbor_supervoxel->normal_;
+            //std::cout<<"adjacent normal: "<<adjacent_normal.normal_x<<" "<<adjacent_normal.normal_y<<" "<<adjacent_normal.normal_z<<std::endl;
             //now check if these two normals have a similar direction
             if(fabs((supervoxel_normal.normal_x-adjacent_normal.normal_x)*(supervoxel_normal.normal_x-adjacent_normal.normal_x)+
                 (supervoxel_normal.normal_y-adjacent_normal.normal_y)*(supervoxel_normal.normal_y-adjacent_normal.normal_y)+
                 (supervoxel_normal.normal_z-adjacent_normal.normal_z)*(supervoxel_normal.normal_z-adjacent_normal.normal_z))<0.07){ //check what value to put there
+                //std::cout<<"1 is here"<<std::endl;
 
                 //add this to the visualization debug
                 adjacent_supervoxel_centers.push_back(neighbor_supervoxel->centroid_);
@@ -574,11 +595,16 @@ void ShapeAnalyzer::refine_adjacency(){
             else if(fabs((supervoxel_normal.normal_x+adjacent_normal.normal_x)*(supervoxel_normal.normal_x+adjacent_normal.normal_x)+
                 (supervoxel_normal.normal_y+adjacent_normal.normal_y)*(supervoxel_normal.normal_y+adjacent_normal.normal_y)+
                 (supervoxel_normal.normal_z+adjacent_normal.normal_z)*(supervoxel_normal.normal_z+adjacent_normal.normal_z))<0.07){
+                //std::cout<<"1 is in there"<<std::endl;
 
                 //add this to the visualization debug
                 adjacent_supervoxel_centers.push_back(neighbor_supervoxel->centroid_);
                 //add this to the refined adjacency
                 refined_adjacency.insert(std::pair<uint32_t, uint32_t>(supervoxel_label, adjacent_itr->second));
+            }
+            else if(!(refined_adjacency.find(supervoxel_label)!=refined_adjacency.end())){
+                //otherwise this node is just alone
+                refined_adjacency.insert(std::pair<uint32_t, uint32_t>(supervoxel_label, supervoxel_label));
             }
         }
         //Now we make a name for this polygon
@@ -598,6 +624,7 @@ void ShapeAnalyzer::refine_adjacency(){
         //std::cout<<"++++++++++++++++++++++++++++++"<<std::endl;
         //get the supervoxel id
         uint32_t supervoxel_label = label_itr->first;
+        //std::cout<<"Current ITERATOR: "<<supervoxel_label<<std::endl;
         if(!(examined_nodes.find(supervoxel_label)!=examined_nodes.end())){
             //this node had not been analyzed before! It means it is a new connected component
             component_id++;
@@ -621,6 +648,8 @@ void ShapeAnalyzer::refine_adjacency(){
                 if(discovered_nodes.find(v)==discovered_nodes.end()){
                     discovered_nodes.insert(v); //for the local bfs
                     examined_nodes.insert(v); //for the global analysis
+
+                    //std::cout<<"inserting component of: "<<v<<std::endl;
 
                     nodes_to_connected_component.insert(std::pair<uint32_t, int>(v, component_id));
                     Eigen::Vector3f normal;
@@ -694,7 +723,8 @@ void ShapeAnalyzer::refine_adjacency(){
     bool done=false;
 
     for(int component=0; component<=component_id; component++){
-        std::cout<<"component: "<<component<<std::endl;
+        //std::cout<<"component: "<<component<<std::endl;
+        
         //get the average normal of the component:
         Eigen::Vector3f nx, ny, nz;
         nx=component_to_average_normal.at(component);
@@ -741,6 +771,7 @@ void ShapeAnalyzer::refine_adjacency(){
         std::vector<uint32_t> nodes(connected_component_to_set_of_nodes.at(component).begin(), connected_component_to_set_of_nodes.at(component).end());
         for(int idx=0; idx<nodes.size(); idx++){
             //std::cout<<"    node: "<<nodes[idx]<<std::endl;
+            
             int pc_idx=supervoxel_to_pc_idx.at(nodes[idx]);
             pcl::PointXYZRGBA c=all_centroids_cloud->at(pc_idx);
             //std::cout<<"===point normal: "<<supervoxel_clusters.at(nodes[idx])->normal_.normal_x<<" "<<supervoxel_clusters.at(nodes[idx])->normal_.normal_y<< " "<<supervoxel_clusters.at(nodes[idx])->normal_.normal_z<<std::endl;
@@ -780,7 +811,8 @@ void ShapeAnalyzer::refine_adjacency(){
 
             std::set<int> angles_per_node(all_angles);
 
-            std::cout<<"        impossible angles: ";
+            //std::cout<<"        impossible angles: ";
+
             if(kdtree.radiusSearch(searchPoint, l_finger+3.0, pointIdxRadiusSearch, pointRadiusSquaredDistance)>0){
                 pcl::PointCloud<pcl::PointXYZ>::Ptr neighbour_cloud(new pcl::PointCloud<pcl::PointXYZ>());
                 for(int i=0; i<pointIdxRadiusSearch.size(); i++){
@@ -817,45 +849,45 @@ void ShapeAnalyzer::refine_adjacency(){
                             //round_angle-=floor(round_angle)%5;
                             //convert in int
                             int int_round_angle=floor(round_angle);
-                            //convert from 360 to 0:
-                            if(int_round_angle==360){
-                                int_round_angle=0;
-                            }
                             int int_angle=int_round_angle-(int_round_angle%5);
                             if(int_angle%5!=0){
                                 std::cout<<"ERROR IN THE ROUNDING TO 5"<<std::endl;
+                            }
+                            //convert from 360 to 0:
+                            if(int_round_angle==360){
+                                int_round_angle=0;
                             }
                             if (angles_per_node.find(int_angle)!=angles_per_node.end()){
                                 if(false){
                                     viewer->addSphere(object_shape->at(pointIdxRadiusSearch[i]), 1, 0.0, 0.0, 0.6, "anglesphere"+std::to_string(int_angle)+"_"+std::to_string(nodes[idx]), v2);
                                 }
                                 angles_per_node.erase((int_angle)); 
-                                std::cout<<int_angle<<", ";
+                                //std::cout<<int_angle<<", ";
                             }
                         }
                     }
                 }
-                if(false){
+                if(true){
                     //std::cout<<"=================== node: "<<nodes[idx]<<std::endl;
                     //add the neighbor pointcloud to the viewer
                     std::stringstream ss;
                     ss<<"neighbor_" <<nodes[idx];
                     //random color
                     pcl::visualization::PointCloudColorHandlerRandom<pcl::PointXYZ> hc(neighbour_cloud);
-                    viewer->addPointCloud (neighbour_cloud, hc, ss.str(), v2);
-                    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, ss.str());
-                    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_OPACITY,0.8, ss.str());
+                    //viewer->addPointCloud (neighbour_cloud, hc, ss.str(), v2);
+                    //viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, ss.str());
+                    //viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_OPACITY,0.8, ss.str());
                     //viewer->addSphere(supervoxel_clusters.at(nodes[idx])->centroid_, 1, 0.0, 0.0, 1.0, "sphere"+std::to_string(nodes[idx]), v2);
                     Eigen::Matrix4f transf=Eigen::Matrix4f::Identity();
                     transf.block<3, 3>(0, 0)=R_transpose;
                     transf.block<3,1>(0, 3)=Eigen::Vector3f(c.x,c.y,c.z);
                     Eigen::Affine3f aff;
                     aff.matrix()=transf;
-                    //viewer->addCoordinateSystem(3.0, aff, "normals ", v2);
+                    viewer->addCoordinateSystem(3.0, aff, "normals ");
                     //done=true;
                 }
             }
-            std::cout<<std::endl;
+            //std::cout<<std::endl;
 
             //now add this mapping between the supervoxel and the possible angles
             possible_angles.insert(std::pair<uint32_t, std::set<int>>(nodes[idx], angles_per_node));
@@ -948,15 +980,15 @@ void ShapeAnalyzer::compute_angle_sequence(std::vector<int> path, int finger_id)
 
     Eigen::Matrix3f component_to_base;
     component_to_base(0,0)=nx(0);
-    component_to_base(0,1)=nx(1);
-    component_to_base(0,2)=nx(2);
+    component_to_base(1,0)=nx(1);
+    component_to_base(2,0)=nx(2);
 
-    component_to_base(1,0)=ny(0);
+    component_to_base(0,1)=ny(0);
     component_to_base(1,1)=ny(1);
-    component_to_base(1,2)=ny(2);
+    component_to_base(2,1)=ny(2);
 
-    component_to_base(2,0)=nz(0);
-    component_to_base(2,1)=nz(1);
+    component_to_base(0,2)=nz(0);
+    component_to_base(1,2)=nz(1);
     component_to_base(2,2)=nz(2);
 
 
@@ -964,30 +996,41 @@ void ShapeAnalyzer::compute_angle_sequence(std::vector<int> path, int finger_id)
     uint32_t desired_contact_index;
     if(finger_id==1){
         desired_contact_index=uint32_t(desired_centroid_idx_1);
-        q1=Eigen::Quaternion<float>(initial_pose_1(3), initial_pose_1(4), initial_pose_1(5), initial_pose_1(6));
-        q2=Eigen::Quaternion<float>(desired_pose_1(3), desired_pose_1(4), desired_pose_1(5), desired_pose_1(6));
+        q1=Eigen::Quaternion<float>(initial_pose_1(6), initial_pose_1(3), initial_pose_1(4), initial_pose_1(5)); //Eigen has the w before in the quaternion
+        q2=Eigen::Quaternion<float>(desired_pose_1(6), desired_pose_1(3), desired_pose_1(4), desired_pose_1(5));
     }
     else{
         desired_contact_index=uint32_t(desired_centroid_idx_2);
-        q1=Eigen::Quaternion<float>(initial_pose_2(3), initial_pose_2(4), initial_pose_2(5), initial_pose_2(6));
-        q2=Eigen::Quaternion<float>(desired_pose_2(3), desired_pose_2(4), desired_pose_2(5), desired_pose_2(6));
+        q1=Eigen::Quaternion<float>(initial_pose_2(6), initial_pose_2(3), initial_pose_2(4), initial_pose_2(5));
+        q2=Eigen::Quaternion<float>(desired_pose_2(6), desired_pose_2(3), desired_pose_2(4), desired_pose_2(5));
     }
 
 
     initial_gripper_to_base=q1.toRotationMatrix();
     desired_gripper_to_base=q2.toRotationMatrix();
 
+    //std::cout<<"initial gripper to base: "<<std::endl<<initial_gripper_to_base<<std::endl<<std::endl;
+    //std::cout<<"desired gripper to base: "<<std::endl<<desired_gripper_to_base<<std::endl<<std::endl;
+    //std::cout<<"component to base: "<<std::endl<<component_to_base<<std::endl<<std::endl;
+    //std::cout<<"component to base transpose: "<<std::endl<<component_to_base.transpose()<<std::endl<<std::endl;
+
     //now get the vector Z' of the gripper expressed in the component's reference frame
     Eigen::Matrix3f initial_gripper_to_component=component_to_base.transpose()*initial_gripper_to_base;
     Eigen::Matrix3f desired_gripper_to_component=component_to_base.transpose()*desired_gripper_to_base;
-    //the last column of the matrix is the z vector. its projection on the nz ny plane are the second and third components
-    Eigen::Vector3f z_prime=initial_gripper_to_component.block<3, 1>(0, 2);
-    double initial_angle=atan2(z_prime(2), z_prime(1));
+
+    //std::cout<<"initial gripper to component: "<<std::endl<<initial_gripper_to_component<<std::endl<<std::endl;
+    //std::cout<<"desired gripper to component: "<<std::endl<<desired_gripper_to_component<<std::endl<<std::endl;
+
+    //the first column of the matrix is the x vector of the gripper. this one has to be inverted and then the angle w.r.t. the y axis of the gripper can be found
+    Eigen::Vector3f x_prime=initial_gripper_to_component.block<3, 1>(0, 0);
+    //std::cout<<"x_prime init: "<<x_prime.transpose()<<std::endl;
+    double initial_angle=atan2(-x_prime(2), -x_prime(1));
     if (initial_angle<0){
         initial_angle+=2*M_PI;
     }
-    z_prime=desired_gripper_to_component.block<3, 1>(0, 2);
-    double desired_angle=atan2(z_prime(2), z_prime(1));
+    x_prime=desired_gripper_to_component.block<3, 1>(0, 0);
+    //std::cout<<"x_prime des: "<<x_prime.transpose()<<std::endl;
+    double desired_angle=atan2(-x_prime(2), -x_prime(1));
     if (desired_angle<0){
         desired_angle+=2*M_PI;
     }
@@ -999,17 +1042,17 @@ void ShapeAnalyzer::compute_angle_sequence(std::vector<int> path, int finger_id)
     //convert in int
     int int_initial_angle=floor(round_angle);
     //convert from 360 to 0:
+    int_initial_angle=int_initial_angle-(int_initial_angle%5);
     if(int_initial_angle==360){
         int_initial_angle=0;
     }
-    int_initial_angle=int_initial_angle-(int_initial_angle%5);
     //same for desired angle
     round_angle=desired_angle+5/2;
     int int_desired_angle=floor(round_angle);
+    int_desired_angle=int_desired_angle-(int_desired_angle%5);
     if(int_desired_angle==360){
         int_desired_angle=0;
     }
-    int_desired_angle=int_desired_angle-(int_desired_angle%5);
 
     std::cout<<"Initial angle: "<<int_initial_angle<<std::endl;
     std::cout<<"Desired angle: "<<int_desired_angle<<std::endl;
