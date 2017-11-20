@@ -415,17 +415,11 @@ std::stack<int> ShapeAnalyzer::get_path(std::multimap<uint32_t,uint32_t> graph, 
                     if (centroids_kdtree.nearestKSearch(input, K, pointIdxNKNSearch, pointNKNSquaredDistance)> 0){
                         for (size_t i = 0; i < pointIdxNKNSearch.size (); ++i){
                             //search for one component in the default connected component
-                            std::cout<<"HERE"<<std::endl;
-                            std::cout<<"supervoxel id of initial: "<<opposite_component<<std::endl;
-                            std::cout<<"supervoxel id of nearest: "<<pc_to_supervoxel_idx.at(pointIdxNKNSearch[i])<<std::endl;
-                            std::cout<<"connected component of initial: "<<nodes_to_connected_component.at(opposite_component)<<std::endl;
-                            std::cout<<"connected component of nearest: "<<nodes_to_connected_component.at(pc_to_supervoxel_idx.at(pointIdxNKNSearch[i]))<<std::endl;
                             if(nodes_to_connected_component.at(pc_to_supervoxel_idx.at(pointIdxNKNSearch[i]))==nodes_to_connected_component.at(opposite_component)){
                                 slave_dist=0;
                                 //std::cout<<"The slave contact is in the connected component."<<std::endl;
                                 break;
                             }
-                            std::cout<<"999999"<<std::endl;
 
                         }
                     }
@@ -883,7 +877,7 @@ void ShapeAnalyzer::refine_adjacency(){
                     transf.block<3,1>(0, 3)=Eigen::Vector3f(c.x,c.y,c.z);
                     Eigen::Affine3f aff;
                     aff.matrix()=transf;
-                    viewer->addCoordinateSystem(3.0, aff, "normals ");
+                    //viewer->addCoordinateSystem(3.0, aff, "normals ");
                     //done=true;
                 }
             }
@@ -1058,7 +1052,7 @@ void ShapeAnalyzer::compute_angle_sequence(std::vector<int> path, int finger_id)
     std::cout<<"Desired angle: "<<int_desired_angle<<std::endl;
 
     int index=path.size()-1;
-    std::cout<<"Index: "<<index<<std::endl;
+    //std::cout<<"Index: "<<index<<std::endl;
     //now cicle backwards the nodes to compute the sequence of angles
     std::set<int> current_node_angles=possible_angles.at(desired_contact_index);
     std::set<int> next_node_angles;
@@ -1072,7 +1066,7 @@ void ShapeAnalyzer::compute_angle_sequence(std::vector<int> path, int finger_id)
     angle_sequence.resize(path.size());
     angle_sequence[index]=double(desired_angle)*M_PI/180.0;
     index=index-1;
-    std::cout<<"Index: "<<index<<std::endl;
+    //std::cout<<"Index: "<<index<<std::endl;
     while(index>=0){
         next_node_angles=current_node_angles;
         current_node_angles=possible_angles.at(uint32_t(path[index]));
@@ -1092,7 +1086,7 @@ void ShapeAnalyzer::compute_angle_sequence(std::vector<int> path, int finger_id)
             angle_sequence[index]=double(current_angle)*M_PI/180.0;
         }
         index=index-1;
-        std::cout<<"Index: "<<index<<std::endl;
+        //std::cout<<"Index: "<<index<<std::endl;
     }
 
 
