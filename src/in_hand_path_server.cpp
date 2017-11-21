@@ -46,7 +46,7 @@ void InHandPathServer::init(ros::NodeHandle &n){
 
     if (!n.getParam("object_name", object_name)){
         object_name="shape2_high_res.pcd";
-        std::cout<<"No object specified. Using default: "<<object_name<<std::endl;
+        std::cout<<"No object name specified. Using default: "<<object_name<<std::endl;
     }
     if(!n.getParam("object_file_path", object_file_path)){
         object_file_path=ros::package::getPath("shape_analysis")+"/shapes/";

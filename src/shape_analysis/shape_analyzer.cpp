@@ -861,23 +861,23 @@ void ShapeAnalyzer::refine_adjacency(){
                         }
                     }
                 }
-                if(true){
+                if(false){
                     //std::cout<<"=================== node: "<<nodes[idx]<<std::endl;
                     //add the neighbor pointcloud to the viewer
                     std::stringstream ss;
                     ss<<"neighbor_" <<nodes[idx];
                     //random color
                     pcl::visualization::PointCloudColorHandlerRandom<pcl::PointXYZ> hc(neighbour_cloud);
-                    //viewer->addPointCloud (neighbour_cloud, hc, ss.str(), v2);
-                    //viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, ss.str());
-                    //viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_OPACITY,0.8, ss.str());
-                    //viewer->addSphere(supervoxel_clusters.at(nodes[idx])->centroid_, 1, 0.0, 0.0, 1.0, "sphere"+std::to_string(nodes[idx]), v2);
+                    viewer->addPointCloud (neighbour_cloud, hc, ss.str(), v2);
+                    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, ss.str());
+                    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_OPACITY,0.8, ss.str());
+                    viewer->addSphere(supervoxel_clusters.at(nodes[idx])->centroid_, 1, 0.0, 0.0, 1.0, "sphere"+std::to_string(nodes[idx]), v2);
                     Eigen::Matrix4f transf=Eigen::Matrix4f::Identity();
                     transf.block<3, 3>(0, 0)=R_transpose;
                     transf.block<3,1>(0, 3)=Eigen::Vector3f(c.x,c.y,c.z);
                     Eigen::Affine3f aff;
                     aff.matrix()=transf;
-                    //viewer->addCoordinateSystem(3.0, aff, "normals ");
+                    viewer->addCoordinateSystem(3.0, aff, "normals ");
                     //done=true;
                 }
             }
@@ -1087,6 +1087,13 @@ void ShapeAnalyzer::compute_angle_sequence(std::vector<int> path, int finger_id)
         }
         index=index-1;
         //std::cout<<"Index: "<<index<<std::endl;
+    }
+
+    //now change the list so that it becomes a list of deltas
+    double old_angle=initial_angle*M_PI/180; //this is the initial angle
+    for(int i=0; i<angle_sequence.size(); i++){
+        angle_sequence[i]=angle_sequence[i]-old_angle;
+        old_angle=old_angle+angle_sequence[i];//uptade to the next angle
     }
 
 
