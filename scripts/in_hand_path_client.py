@@ -187,6 +187,6 @@ class InHandPathClient(Tkinter.Tk):
             print "Service call failed: %s"%e
 
 if __name__ == "__main__":
-    rospy.init_node('robot_interface')
+    rospy.init_node('in_hand_path_client')
     inp = InHandPathClient()
     inp.mainloop()

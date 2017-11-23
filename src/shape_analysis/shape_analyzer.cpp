@@ -463,8 +463,9 @@ std::stack<int> ShapeAnalyzer::get_path(std::multimap<uint32_t,uint32_t> graph, 
 }
 
 void ShapeAnalyzer::compute_path(int finger_id){
-    //first of all, clear the previously drawn path
+    //first of all, clear the previously drawn path and delete the previous translation sequence
     int max_line_id=translation_sequence.size()-1;
+    translation_sequence = std::vector<geometry_msgs::Point>();
     for(int i=0; i<=max_line_id; i++){
         viewer->removeShape("line "+std::to_string(i));
     }
@@ -539,7 +540,8 @@ void ShapeAnalyzer::compute_path(int finger_id){
         count++;
         //std::cout<<"line drawn: "<<count<<std::endl;
         point1=point2;
-    }  
+    }
+    //std::cout<<"TRANSLATION SEQUENCE::::::"<<translation_sequence.size()<<std::endl;  
 
     compute_angle_sequence(path, finger_id);  
 }
