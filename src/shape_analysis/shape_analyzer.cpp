@@ -358,6 +358,10 @@ std::stack<int> ShapeAnalyzer::get_path(std::multimap<uint32_t,uint32_t> graph, 
         all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(uint32_t(opposite_component))).y, 
         all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(uint32_t(opposite_component))).z;
 
+    //insert the first distance
+    double distance_between_contacts=(p0-l0).norm();
+    node_to_slave_distance.insert(std::pair<uint32_t, double>(uint32_t(init), distance_between_contacts));    
+
     //do graph search here
     //create the set of keys (vertices)
     std::set<uint32_t> Q;
@@ -410,6 +414,10 @@ std::stack<int> ShapeAnalyzer::get_path(std::multimap<uint32_t,uint32_t> graph, 
                     input.y=intersection_point(1);
                     input.z=intersection_point(2);
 
+                    //now add the distance between the current contact point and the obtained component to the map between distances and nodes (along the normal)
+                    distance_between_contacts=(l0-intersection_point).norm();
+                    node_to_slave_distance.insert(std::pair<uint32_t, double>(adjacent_itr->second, distance_between_contacts));
+
                     //std::cout<<"Checking the opposite component."<<std::endl;
 
                     if (centroids_kdtree.nearestKSearch(input, K, pointIdxNKNSearch, pointNKNSquaredDistance)> 0){
@@ -428,9 +436,16 @@ std::stack<int> ShapeAnalyzer::get_path(std::multimap<uint32_t,uint32_t> graph, 
                         std::cout<<"ERROR: cold not associate slave contact to centroid"<<std::endl;
                     }
 
+                    //compute the real distance between the nodes now
+                    Eigen::Vector3f source_point;
+                    source_point<<all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(adjacent_itr->first)).x, 
+                        all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(adjacent_itr->first)).y, 
+                        all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(adjacent_itr->first)).z;
+
+                    double node_dist=(l0-source_point).norm();
 
                     //the distance can be modified by the opposite finger if it is not in the same connected component
-                    double alt=dist[u]+1.0+slave_dist; //all the edges assumed at distance 1
+                    double alt=dist[u]+node_dist+slave_dist; 
                     if(alt<dist[int(adjacent_itr->second)]){
                         //a new shortest path has been found
                         dist[int(adjacent_itr->second)]=alt;
@@ -474,11 +489,13 @@ void ShapeAnalyzer::compute_path(int finger_id){
     Eigen::Vector3f grasp_point1, grasp_point2, grasp_line;
     grasp_point1<<initial_pose_1(0, 0), initial_pose_1(1, 0), initial_pose_1(2, 0);
     grasp_point2<<initial_pose_2(0, 0), initial_pose_2(1, 0), initial_pose_2(2, 0);
+    std::cout<<"grasp points: "<<std::endl<<grasp_point1.transpose()<<std::endl<<grasp_point2.transpose()<<std::endl;
     grasp_line=grasp_point2-grasp_point1;
     grasp_line.normalize();
     //check if the desired contact is valid
     grasp_point1<<desired_pose_1(0, 0), desired_pose_1(1, 0), desired_pose_1(2, 0);
     grasp_point2<<desired_pose_2(0, 0), desired_pose_2(1, 0), desired_pose_2(2, 0);
+    std::cout<<"desired points: "<<std::endl<<grasp_point1.transpose()<<std::endl<<grasp_point2.transpose()<<std::endl;
     Eigen::Vector3f desired_grasp_line=grasp_point2-grasp_point1;
     desired_grasp_line.normalize();
     if(fabs((grasp_line-desired_grasp_line).norm())>0.1){
@@ -543,7 +560,10 @@ void ShapeAnalyzer::compute_path(int finger_id){
     }
     //std::cout<<"TRANSLATION SEQUENCE::::::"<<translation_sequence.size()<<std::endl;  
 
-    compute_angle_sequence(path, finger_id);  
+    //compute angle sequence
+    compute_angle_sequence(path, finger_id); 
+    //compute distance sequence
+    compute_contact_distances(path); 
 }
 
 void ShapeAnalyzer::set_finger_length(double l){
@@ -1101,6 +1121,20 @@ void ShapeAnalyzer::compute_angle_sequence(std::vector<int> path, int finger_id)
 
 }
 
+void ShapeAnalyzer::compute_contact_distances(std::vector<int> path){
+    //delete the old distance if any
+    distance_variations.clear();
+    double previous_distance=node_to_slave_distance.at(uint32_t(path[0]))/1000.0; //convert into meters from mm
+    double current_distance;
+    //loop through the path and create the sequence of distance variations
+    for(int i=1; i<path.size(); i++){
+        current_distance=node_to_slave_distance.at(uint32_t(path[i]))/1000.0;
+        distance_variations.push_back(current_distance - previous_distance);
+        previous_distance=current_distance;
+    }
+
+}
+
 void ShapeAnalyzer::set_supervoxel_parameters(float voxel_res, float seed_res, float color_imp, float spatial_imp, float normal_imp, bool disable_transf, int refinement_it){
     voxel_resolution=voxel_res;
     seed_resolution=seed_res;
@@ -1118,3 +1152,8 @@ std::vector<geometry_msgs::Point> ShapeAnalyzer::get_translation_sequence(){
 std::vector<double> ShapeAnalyzer::get_angle_sequence(){
     return angle_sequence;
 }
+
+std::vector<double> ShapeAnalyzer::get_distance_sequence(){
+    return distance_variations;
+}
+

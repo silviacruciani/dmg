@@ -45,6 +45,7 @@ namespace shape_analysis{
             void set_supervoxel_parameters(float voxel_res, float seed_res, float color_imp, float spatial_imp, float normal_imp, bool disable_transf, int refinement_its);
             std::vector<geometry_msgs::Point> get_translation_sequence();
             std::vector<double> get_angle_sequence();
+            std::vector<double> get_distance_sequence();
 
         private:
             void addSupervoxelConnectionsToViewer(pcl::PointXYZRGBA &supervoxel_center,
@@ -56,6 +57,7 @@ namespace shape_analysis{
             int connect_centroid_to_contact(geometry_msgs::Point p, geometry_msgs::Quaternion q, std::string id, bool render_sphere);
             std::stack<int> get_path(std::multimap<uint32_t,uint32_t> graph, int init, int end, Eigen::Vector3f grasp_line, int opposite_component);
             void compute_angle_sequence(std::vector<int> path, int finger_id);
+            void compute_contact_distances(std::vector<int> path);
             
             double l_finger;
             pcl::PointCloud<pcl::PointXYZ>::Ptr object_shape;
@@ -88,6 +90,7 @@ namespace shape_analysis{
             std::map<int, std::set<uint32_t>> connected_component_to_set_of_nodes;
             std::map<uint32_t, int> nodes_to_connected_component;
             std::map<int, Eigen::Vector3f> component_to_average_normal;
+            std::map<uint32_t, double> node_to_slave_distance;
 
             //supervoxel parameters
             bool disable_transform; //the transformation has to be disabled for organized pointclouds

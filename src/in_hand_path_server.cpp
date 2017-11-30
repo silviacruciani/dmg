@@ -33,6 +33,8 @@ bool InHandPathServer::compute_path(InHandPath::Request &req, InHandPath::Respon
     //now transform everything into the srv compatible types
     res.translations=shape_analizer.get_translation_sequence();
     res.rotations=shape_analizer.get_angle_sequence();
+    res.distance_variations=shape_analizer.get_distance_sequence();
+    res.master_index=0; //no change in the requested master finger
 
     return true;
 
