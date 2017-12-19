@@ -492,12 +492,16 @@ void ShapeAnalyzer::compute_path(int finger_id){
     std::cout<<"grasp points: "<<std::endl<<grasp_point1.transpose()<<std::endl<<grasp_point2.transpose()<<std::endl;
     grasp_line=grasp_point2-grasp_point1;
     grasp_line.normalize();
+    std::cout<<"initial grasp line: "<<grasp_line.transpose()<<std::endl;
     //check if the desired contact is valid
-    grasp_point1<<desired_pose_1(0, 0), desired_pose_1(1, 0), desired_pose_1(2, 0);
-    grasp_point2<<desired_pose_2(0, 0), desired_pose_2(1, 0), desired_pose_2(2, 0);
+    grasp_point1=Eigen::Vector3f(desired_pose_1(0, 0), desired_pose_1(1, 0), desired_pose_1(2, 0));
+    grasp_point2=Eigen::Vector3f(desired_pose_2(0, 0), desired_pose_2(1, 0), desired_pose_2(2, 0));
     std::cout<<"desired points: "<<std::endl<<grasp_point1.transpose()<<std::endl<<grasp_point2.transpose()<<std::endl;
     Eigen::Vector3f desired_grasp_line=grasp_point2-grasp_point1;
     desired_grasp_line.normalize();
+    std::cout<<"desired grasp line: "<<desired_grasp_line.transpose()<<std::endl;
+    std::cout<<"diff vector: "<<(grasp_line-desired_grasp_line).transpose()<<std::endl;
+    std::cout<<"diff norm: "<<(grasp_line-desired_grasp_line).norm()<<std::endl;
     if(fabs((grasp_line-desired_grasp_line).norm())>0.1){
         std::cout<<"Wrong final pose. Rotation around different axes could be required."<<std::endl;
         return;
