@@ -502,7 +502,7 @@ void ShapeAnalyzer::compute_path(int finger_id){
     std::cout<<"desired grasp line: "<<desired_grasp_line.transpose()<<std::endl;
     std::cout<<"diff vector: "<<(grasp_line-desired_grasp_line).transpose()<<std::endl;
     std::cout<<"diff norm: "<<(grasp_line-desired_grasp_line).norm()<<std::endl;
-    if(fabs((grasp_line-desired_grasp_line).norm())>0.1){
+    if(fabs((grasp_line-desired_grasp_line).norm())>0.3){
         std::cout<<"Wrong final pose. Rotation around different axes could be required."<<std::endl;
         return;
     }
