@@ -33,7 +33,9 @@ def call_server(server_name, pose1, pose2, pose1d, pose2d):
     #check the response to see if the solution is valid or not
     if resp.translations is None:
         return 0
-    elif (len(resp.translations)< 2) and abs(resp.rotations[0]) < 0.1 :  
+    elif len(translations) < 1 or len(rotations) < 1:
+        return 0
+    elif (len(resp.translations)< 2) and abs(resp.rotations[0]) < 0.1 :   
         return 0
     else:
         return 1

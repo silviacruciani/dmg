@@ -41,6 +41,7 @@ void ShapeAnalyzer::set_object_from_pointcloud(std::string file_name){
     pcl::getMinMax3D(*object_shape, min, max);
     std::cout<<"min: "<<min.x<<" "<<min.y<<" "<<min.z<<std::endl;
     std::cout<<"max: "<<max.x<<" "<<max.y<<" "<<max.z<<std::endl;
+    object_center<<(max.x - min.x)/2.0, (max.y - min.y)/2.0, (max.z - min.z)/2.0;
     //visualizer to be used for debug purposes
     viewer=new pcl::visualization::PCLVisualizer ("3D Viewer");
     int v(0);
@@ -481,6 +482,8 @@ void ShapeAnalyzer::compute_path(int finger_id){
     //first of all, clear the previously drawn path and delete the previous translation sequence
     int max_line_id=translation_sequence.size()-1;
     translation_sequence = std::vector<geometry_msgs::Point>();
+    angle_sequence=std::vector<double>();
+    distance_variations=std::vector<double>();
     for(int i=0; i<=max_line_id; i++){
         viewer->removeShape("line "+std::to_string(i));
     }
@@ -785,11 +788,13 @@ void ShapeAnalyzer::refine_adjacency(){
 
         R_transpose=R.transpose();
 
+        //check if nx is pointing inwards or outwards with respect to the object's center:
 
         /*transform.block<3,3>(0,0)=R;*/
         //for the translation, cicle through all the nodes in the component
         std::vector<uint32_t> nodes(connected_component_to_set_of_nodes.at(component).begin(), connected_component_to_set_of_nodes.at(component).end());
         for(int idx=0; idx<nodes.size(); idx++){
+            //std::cout<<"idx: "<<idx<<std::endl;
             //std::cout<<"    node: "<<nodes[idx]<<std::endl;
             
             int pc_idx=supervoxel_to_pc_idx.at(nodes[idx]);
@@ -831,6 +836,26 @@ void ShapeAnalyzer::refine_adjacency(){
 
             std::set<int> angles_per_node(all_angles);
 
+            //variables used to check the direction of the normal:
+            Eigen::Vector3f t_vector;
+            t_vector<<c.x, c.y, c.z;
+            double squared_sphere_radius=(-object_center + t_vector).squaredNorm();
+            //check the direction of the normal nx
+            Eigen::Vector3f control_vector=t_vector+0.5*nx;
+            bool inwards_normal=true;
+            if(component==0 && idx == 1){
+                std::cout<<"sphere radius: "<<squared_sphere_radius<<std::endl;
+                std::cout<<"t_vector: "<<t_vector.transpose()<<std::endl;
+                std::cout<<"obj center: "<<object_center.transpose()<<std::endl;
+                std::cout<<"nx: "<<nx.transpose()<<std::endl;
+                std::cout<<"control_vector: "<<control_vector.transpose()<<std::endl;
+                std::cout<<"diff_vector squared norm: "<<(control_vector-object_center).squaredNorm()<<std::endl;
+            }
+            if((control_vector(0)-object_center(0))*(control_vector(0)-object_center(0))+(control_vector(1)-object_center(1))*(control_vector(1)-object_center(1))+
+                (control_vector(2)-object_center(2))*(control_vector(2)-object_center(2)) > squared_sphere_radius){
+                inwards_normal=false;
+            }
+
             //std::cout<<"        impossible angles: ";
 
             if(kdtree.radiusSearch(searchPoint, l_finger+3.0, pointIdxRadiusSearch, pointRadiusSquaredDistance)>0){
@@ -852,7 +877,8 @@ void ShapeAnalyzer::refine_adjacency(){
                         if(fabs(transformed_point(0))<l_finger/4.0){
                             //add the point to the poincloud for debug
 
-                            neighbour_cloud->push_back(object_shape->at(pointIdxRadiusSearch[i]));
+    
+                            //neighbour_cloud->push_back(object_shape->at(pointIdxRadiusSearch[i]));
 
                             //check the point and associate it with the corresponding angle
                             //the x axis corresponds to the normal. the ny axis corresponds to the 0 angle
@@ -886,9 +912,55 @@ void ShapeAnalyzer::refine_adjacency(){
                             }
                         }
                     }
+                    else {//if (pointRadiusSquaredDistance[i]>=100.0){
+                        //these are probable collisions not due to the length of the finger, but because of the object's shape
+                        //check the elevation of the transformed point. If it is too big (tolerance of 0.2 radians to remove those on the surface?)
+                        //create a 3D vector:
+                        Eigen::Vector3f point;
+                        point<<object_shape->at(pointIdxRadiusSearch[i]).x, object_shape->at(pointIdxRadiusSearch[i]).y, object_shape->at(pointIdxRadiusSearch[i]).z;
+                        Eigen::Vector3f transformed_point=R*point+translation; 
+
+                        //the x axis corresponds to the normal. the ny axis corresponds to the 0 angle
+                        //check the x component: (for now assume nx is always pointing inwards from the object's center)
+                        if( (transformed_point(0)<-3.0 && transformed_point(0)>-5.0 && inwards_normal) ||
+                            (transformed_point(0)>3.0 && transformed_point(0)<5.0 && !inwards_normal) )
+                            {
+                            neighbour_cloud->push_back(object_shape->at(pointIdxRadiusSearch[i]));
+                            double angle=atan2(transformed_point(2), transformed_point(1));
+                            //move it between 0 and 2 pi
+                            if(angle<0){
+                                angle=angle+2*M_PI;
+                            }
+                            //convert the angle into degrees:
+                            angle=angle*180.0/M_PI;
+                            //std::cout<<"    angle: "<<angle<<std::endl;
+                            //approximate the angle in multiples of 5
+                            double round_angle=angle+5/2;
+                            //round_angle-=floor(round_angle)%5;
+                            //convert in int
+                            int int_round_angle=floor(round_angle);
+                            int int_angle=int_round_angle-(int_round_angle%5);
+                            if(int_angle%5!=0){
+                                std::cout<<"ERROR IN THE ROUNDING TO 5"<<std::endl;
+                            }
+                            //convert from 360 to 0:
+                            if(int_round_angle==360){
+                                int_round_angle=0;
+                            }
+                            if (angles_per_node.find(int_angle)!=angles_per_node.end()){
+                                if(false){
+                                    viewer->addSphere(object_shape->at(pointIdxRadiusSearch[i]), 1, 0.0, 0.0, 0.6, "anglesphere"+std::to_string(int_angle)+"_"+std::to_string(nodes[idx]), v2);
+                                }
+                                angles_per_node.erase((int_angle)); 
+                                //std::cout<<int_angle<<", ";
+                            }
+                        }
+                    }
                 }
-                if(false){
-                    //std::cout<<"=================== node: "<<nodes[idx]<<std::endl;
+                if(idx == 1 && component== 0){
+                    std::cout<<"==========idx: "<<idx<<std::endl;
+                    std::cout<<"=================== node: "<<nodes[idx]<<std::endl;
+                    std::cout<<"inwards normal: "<<inwards_normal<<std::endl;
                     //add the neighbor pointcloud to the viewer
                     std::stringstream ss;
                     ss<<"neighbor_" <<nodes[idx];
@@ -904,7 +976,7 @@ void ShapeAnalyzer::refine_adjacency(){
                     Eigen::Affine3f aff;
                     aff.matrix()=transf;
                     viewer->addCoordinateSystem(3.0, aff, "normals ");
-                    //done=true;
+                    //done=false;
                 }
             }
             //std::cout<<std::endl;
@@ -965,22 +1037,29 @@ void ShapeAnalyzer::compute_angle_sequence(std::vector<int> path, int finger_id)
     //get the desired angle from the desired pose (angle between the axiz z ("projected" on ny and nz) around nx, with ny being the 0 angle)
     //obtain the rotation matrix to transform the pose into the nx ny nz reference frame:
     Eigen::Matrix3f desired_gripper_to_base, initial_gripper_to_base, desired_component_to_base, initial_component_to_base;
-    Eigen::Quaternion<float> q1, q2;
+    Eigen::Matrix3f slave_desired_gripper_to_base, slave_initial_gripper_to_base, slave_desired_component_to_base, slave_initial_component_to_base;
+    Eigen::Quaternion<float> q1, q2, slave_q1, slave_q2;
 
     //1) matrix from base frame to nx ny nz
     //get the component of the initial contact
-    uint32_t initial_contact_index;
+    uint32_t initial_contact_index, slave_initial_contact_index;
     if(finger_id==1){
         initial_contact_index=uint32_t(initial_centroid_idx_1);
+        slave_initial_contact_index=uint32_t(initial_centroid_idx_2);
     }
     else{
         initial_contact_index=uint32_t(initial_centroid_idx_2);
+        slave_initial_contact_index=uint32_t(initial_centroid_idx_1);
     }
 
     int initial_contact_connected_component=nodes_to_connected_component.at(initial_contact_index);
+    int slave_initial_contact_connected_component=nodes_to_connected_component.at(slave_initial_contact_index);
     Eigen::Vector3f component_normal=component_to_average_normal.at(initial_contact_connected_component);
+    Eigen::Vector3f slave_component_normal=component_to_average_normal.at(slave_initial_contact_connected_component);
     Eigen::Vector3f nx, ny, nz;
+    Eigen::Vector3f slave_nx, slave_ny, slave_nz;
     nx=component_normal;
+    slave_nx=slave_component_normal;
     if(fabs(nx(0))>0.00000001){
         ny(1)=0;
         ny(2)=sqrt(nx(0)*nx(0)/(nx(0)*nx(0)+nx(2)*nx(2)));
@@ -998,7 +1077,24 @@ void ShapeAnalyzer::compute_angle_sequence(std::vector<int> path, int finger_id)
     }
     nz=nx.cross(ny);
 
-    Eigen::Matrix3f component_to_base;
+    if(fabs(slave_nx(0))>0.00000001){
+        slave_ny(1)=0;
+        slave_ny(2)=sqrt(slave_nx(0)*slave_nx(0)/(slave_nx(0)*slave_nx(0)+slave_nx(2)*slave_nx(2)));
+        slave_ny(0)=-slave_nx(2)*slave_ny(2)/slave_nx(0);
+    }
+    else if(fabs(nx(1))>0.00000001){
+        slave_ny(2)=0;
+        slave_ny(0)=sqrt(slave_nx(1)*slave_nx(1)/(slave_nx(1)*slave_nx(1)+slave_nx(0)*slave_nx(0)));
+        slave_ny(1)=-slave_ny(0)*slave_nx(0)/slave_nx(1);
+    }
+    else{
+        slave_ny(0)=0;
+        slave_ny(1)=sqrt(slave_nx(2)*slave_nx(2)/(slave_nx(1)*slave_nx(1)+slave_nx(2)*slave_nx(2)));
+        slave_ny(2)=-slave_nx(1)*slave_ny(1)/slave_nx(2);
+    }
+    slave_nz=slave_nx.cross(slave_ny);
+
+    Eigen::Matrix3f component_to_base, slave_component_to_base;
     component_to_base(0,0)=nx(0);
     component_to_base(1,0)=nx(1);
     component_to_base(2,0)=nx(2);
@@ -1011,32 +1107,56 @@ void ShapeAnalyzer::compute_angle_sequence(std::vector<int> path, int finger_id)
     component_to_base(1,2)=nz(1);
     component_to_base(2,2)=nz(2);
 
+    slave_component_to_base(0,0)=slave_nx(0);
+    slave_component_to_base(1,0)=slave_nx(1);
+    slave_component_to_base(2,0)=slave_nx(2);
+
+    slave_component_to_base(0,1)=slave_ny(0);
+    slave_component_to_base(1,1)=slave_ny(1);
+    slave_component_to_base(2,1)=slave_ny(2);
+
+    slave_component_to_base(0,2)=slave_nz(0);
+    slave_component_to_base(1,2)=slave_nz(1);
+    slave_component_to_base(2,2)=slave_nz(2);
+
 
     //2) matrix from base to gripper pose
-    uint32_t desired_contact_index;
+    uint32_t desired_contact_index, slave_desired_contact_index;
     if(finger_id==1){
         desired_contact_index=uint32_t(desired_centroid_idx_1);
+        slave_desired_contact_index=uint32_t(desired_centroid_idx_2);
         q1=Eigen::Quaternion<float>(initial_pose_1(6), initial_pose_1(3), initial_pose_1(4), initial_pose_1(5)); //Eigen has the w before in the quaternion
         q2=Eigen::Quaternion<float>(desired_pose_1(6), desired_pose_1(3), desired_pose_1(4), desired_pose_1(5));
+        slave_q1=Eigen::Quaternion<float>(initial_pose_2(6), initial_pose_2(3), initial_pose_2(4), initial_pose_2(5)); //Eigen has the w before in the quaternion
+        slave_q2=Eigen::Quaternion<float>(desired_pose_2(6), desired_pose_2(3), desired_pose_2(4), desired_pose_2(5));
     }
     else{
         desired_contact_index=uint32_t(desired_centroid_idx_2);
+        slave_desired_contact_index=uint32_t(desired_centroid_idx_1);
         q1=Eigen::Quaternion<float>(initial_pose_2(6), initial_pose_2(3), initial_pose_2(4), initial_pose_2(5));
         q2=Eigen::Quaternion<float>(desired_pose_2(6), desired_pose_2(3), desired_pose_2(4), desired_pose_2(5));
+        slave_q1=Eigen::Quaternion<float>(initial_pose_1(6), initial_pose_1(3), initial_pose_1(4), initial_pose_1(5)); //Eigen has the w before in the quaternion
+        slave_q2=Eigen::Quaternion<float>(desired_pose_1(6), desired_pose_1(3), desired_pose_1(4), desired_pose_1(5));
     }
 
 
     initial_gripper_to_base=q1.toRotationMatrix();
     desired_gripper_to_base=q2.toRotationMatrix();
 
-    //std::cout<<"initial gripper to base: "<<std::endl<<initial_gripper_to_base<<std::endl<<std::endl;
-    //std::cout<<"desired gripper to base: "<<std::endl<<desired_gripper_to_base<<std::endl<<std::endl;
-    //std::cout<<"component to base: "<<std::endl<<component_to_base<<std::endl<<std::endl;
-    //std::cout<<"component to base transpose: "<<std::endl<<component_to_base.transpose()<<std::endl<<std::endl;
+    slave_initial_gripper_to_base=slave_q1.toRotationMatrix();
+    slave_desired_gripper_to_base=slave_q2.toRotationMatrix();
+
+    // std::cout<<"slave initial gripper to base: "<<std::endl<<slave_initial_gripper_to_base<<std::endl<<std::endl;
+    // std::cout<<"slave desired gripper to base: "<<std::endl<<slave_desired_gripper_to_base<<std::endl<<std::endl;
+    // std::cout<<"slave component to base: "<<std::endl<<slave_component_to_base<<std::endl<<std::endl;
+    // std::cout<<"slave component to base transpose: "<<std::endl<<slave_component_to_base.transpose()<<std::endl<<std::endl;
 
     //now get the vector Z' of the gripper expressed in the component's reference frame
     Eigen::Matrix3f initial_gripper_to_component=component_to_base.transpose()*initial_gripper_to_base;
     Eigen::Matrix3f desired_gripper_to_component=component_to_base.transpose()*desired_gripper_to_base;
+
+    Eigen::Matrix3f slave_initial_gripper_to_component=slave_component_to_base.transpose()*slave_initial_gripper_to_base;
+    Eigen::Matrix3f slave_desired_gripper_to_component=slave_component_to_base.transpose()*slave_desired_gripper_to_base;
 
     //std::cout<<"initial gripper to component: "<<std::endl<<initial_gripper_to_component<<std::endl<<std::endl;
     //std::cout<<"desired gripper to component: "<<std::endl<<desired_gripper_to_component<<std::endl<<std::endl;
@@ -1077,17 +1197,65 @@ void ShapeAnalyzer::compute_angle_sequence(std::vector<int> path, int finger_id)
     std::cout<<"Initial angle: "<<int_initial_angle<<std::endl;
     std::cout<<"Desired angle: "<<int_desired_angle<<std::endl;
 
+    //do the same thing with the slave contact:
+    Eigen::Vector3f slave_x_prime=slave_initial_gripper_to_component.block<3, 1>(0, 0);
+    //std::cout<<"x_prime init: "<<x_prime.transpose()<<std::endl;
+    double slave_initial_angle=atan2(-slave_x_prime(2), -slave_x_prime(1));
+    if (slave_initial_angle<0){
+        slave_initial_angle+=2*M_PI;
+    }
+    slave_x_prime=slave_desired_gripper_to_component.block<3, 1>(0, 0);
+    //std::cout<<"x_prime des: "<<x_prime.transpose()<<std::endl;
+    double slave_desired_angle=atan2(-slave_x_prime(2), -slave_x_prime(1));
+    if (slave_desired_angle<0){
+        slave_desired_angle+=2*M_PI;
+    }
+
+    //convert this angle into degrees and with intervals of 5
+    slave_initial_angle=slave_initial_angle*180.0/M_PI;
+    slave_desired_angle=slave_desired_angle*180.0/M_PI;
+    double slave_round_angle=slave_initial_angle+5/2;
+    //convert in int
+    int slave_int_initial_angle=floor(slave_round_angle);
+    //convert from 360 to 0:
+    slave_int_initial_angle=slave_int_initial_angle-(slave_int_initial_angle%5);
+    if(slave_int_initial_angle==360){
+        slave_int_initial_angle=0;
+    }
+    //same for desired angle
+    slave_round_angle=slave_desired_angle+5/2;
+    int slave_int_desired_angle=floor(slave_round_angle);
+    slave_int_desired_angle=slave_int_desired_angle-(slave_int_desired_angle%5);
+    if(slave_int_desired_angle==360){
+        slave_int_desired_angle=0;
+    }
+
+    std::cout<<"Slave Initial angle: "<<slave_int_initial_angle<<std::endl;
+    std::cout<<std::endl;
+
     int index=path.size()-1;
     //std::cout<<"Index: "<<index<<std::endl;
     //now cicle backwards the nodes to compute the sequence of angles
     std::set<int> current_node_angles=possible_angles.at(desired_contact_index);
     std::set<int> next_node_angles;
     int current_angle=int_desired_angle;
+    std::cout<<"master desired angle: "<<current_angle<<std::endl;
+    std::cout<<"master desired contact idx: "<<desired_contact_index<<std::endl;
     //first of all check if it is possible. If it is not, well... the list of angles will be empty and the task is impossible to solve
     if(current_node_angles.find(current_angle)==current_node_angles.end()){
         std::cout<<"The desired angle cannot be achieved."<<std::endl;
         return;
     }
+    //check also for the slave finger final pose:
+    std::set<int> slave_current_node_angles=possible_angles.at(slave_desired_contact_index);
+    int slave_current_angle=slave_int_desired_angle;
+    std::cout<<"slave desired angle: "<<slave_current_angle<<std::endl;
+    std::cout<<"slave desired contact idx: "<<slave_desired_contact_index<<std::endl;
+    if(slave_current_node_angles.find(slave_current_angle)==slave_current_node_angles.end()){
+        std::cout<<"The desired angle cannot be achieved."<<std::endl;
+        return;
+    }
+
     //convert the angle back to double
     angle_sequence.resize(path.size());
     angle_sequence[index]=double(desired_angle)*M_PI/180.0;

@@ -102,6 +102,9 @@ namespace shape_analysis{
             std::vector<double> angle_sequence;
             std::vector<double> distance_variations;
 
+            //used to refine the collision detection and check the normal (inwards or outwards the object)
+            Eigen::Vector3f object_center;
+
     };
 }
 
