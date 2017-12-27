@@ -40,6 +40,7 @@ namespace shape_analysis{
             void set_initial_contact(geometry_msgs::Point p, geometry_msgs::Quaternion q, int finger_id);
             void set_desired_contact(geometry_msgs::Point p, geometry_msgs::Quaternion q, int finger_id);
             void compute_path(int finger_id);
+            void compute_extended_path(int finger_id);
             void set_finger_length(double l);
             void refine_adjacency(); //this checks for simple collisions with the gripper
             void set_supervoxel_parameters(float voxel_res, float seed_res, float color_imp, float spatial_imp, float normal_imp, bool disable_transf, int refinement_its);
@@ -56,10 +57,13 @@ namespace shape_analysis{
             bool return_manipulation_sequence(); //create service file for this
             int connect_centroid_to_contact(geometry_msgs::Point p, geometry_msgs::Quaternion q, std::string id, bool render_sphere);
             std::stack<int> get_path(std::multimap<uint32_t,uint32_t> graph, int init, int end, Eigen::Vector3f grasp_line, int opposite_component);
+            std::pair<std::stack<std::pair<int, int>>, std::stack<int>> get_extended_path(std::multimap<std::pair<int, int>, std::pair<int, int>> graph, int init, int end, Eigen::Vector3f grasp_line, std::pair<int, int> opposite_component, int initial_angle, int desired_angle);
             void compute_angle_sequence(std::vector<int> path, int finger_id);
+            void compute_extended_angle_sequence(std::vector<std::pair<int, int>> path, int finger_id, int init_angle, int desired_angle);
             void compute_contact_distances(std::vector<int> path);
             void generate_angles_components_structures(int node_id);
             void generate_connected_components_list_of_extended_refined_adjacency();
+            std::pair<std::pair<int, int>, std::pair<int, int>> get_int_angles(int finger_id);
             
             double l_finger;
             pcl::PointCloud<pcl::PointXYZ>::Ptr object_shape;
@@ -115,10 +119,11 @@ namespace shape_analysis{
             int angle_jump;
 
             //extended graph structure as adjacency of pairs of node and components
-            std::multimap<std::pair<uint32_t, int>, std::pair<uint32_t, int>> extended_refined_adjacency;
-            std::map<int, std::set<std::pair<uint32_t, int>>> extended_connected_component_to_set_of_nodes_angle;
+            std::multimap<std::pair<int, int>, std::pair<int, int>> extended_refined_adjacency;
+            std::map<int, std::set<std::pair<int, int>>> extended_connected_component_to_set_of_nodes_angle;
             int num_extended_connected_components;
-            std::map<std::pair<uint32_t, int>, int> extended_nodes_to_connected_component;
+            std::map<std::pair<int, int>, int> extended_nodes_to_connected_component;
+            std::map<std::pair<int, int>, double> extended_node_to_slave_distance;
 
     };
 }
