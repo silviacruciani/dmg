@@ -58,7 +58,8 @@ namespace shape_analysis{
             std::stack<int> get_path(std::multimap<uint32_t,uint32_t> graph, int init, int end, Eigen::Vector3f grasp_line, int opposite_component);
             void compute_angle_sequence(std::vector<int> path, int finger_id);
             void compute_contact_distances(std::vector<int> path);
-            void generate_angles_components_structrures(int node_id);
+            void generate_angles_components_structures(int node_id);
+            void generate_connected_components_list_of_extended_refined_adjacency();
             
             double l_finger;
             pcl::PointCloud<pcl::PointXYZ>::Ptr object_shape;
@@ -107,9 +108,17 @@ namespace shape_analysis{
             Eigen::Vector3f object_center;
 
             //structures for the angles component
-            std::map<std::pair<int, int>, std::set<int>*> node_angle_to_connected_angles_subset;
+            //std::map<std::pair<int, int>, std::set<int>*> node_angle_to_connected_angles_subset;
             std::map<std::pair<int, int>, int> node_angle_to_angle_component;
+            std::map<std::pair<int, int>, std::set<int>*> node_component_to_angles_subset;
+            std::map<int, std::vector<int>> node_to_angle_components;
             int angle_jump;
+
+            //extended graph structure as adjacency of pairs of node and components
+            std::multimap<std::pair<uint32_t, int>, std::pair<uint32_t, int>> extended_refined_adjacency;
+            std::map<int, std::set<std::pair<uint32_t, int>>> extended_connected_component_to_set_of_nodes_angle;
+            int num_extended_connected_components;
+            std::map<std::pair<uint32_t, int>, int> extended_nodes_to_connected_component;
 
     };
 }

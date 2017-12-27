@@ -377,6 +377,7 @@ std::stack<int> ShapeAnalyzer::get_path(std::multimap<uint32_t,uint32_t> graph, 
     }
     dist[init]=0;
     dist_faked[init]=0;
+
     std::cout<<"data structures initialized for graph search."<<std::endl;
 
     int u;
@@ -844,7 +845,8 @@ void ShapeAnalyzer::refine_adjacency(){
             //check the direction of the normal nx
             Eigen::Vector3f control_vector=t_vector+0.5*nx;
             bool inwards_normal=true;
-            if(component==0 && idx == 1){
+            if(false){
+            //if(component==0 && idx == 1){
                 std::cout<<"sphere radius: "<<squared_sphere_radius<<std::endl;
                 std::cout<<"t_vector: "<<t_vector.transpose()<<std::endl;
                 std::cout<<"obj center: "<<object_center.transpose()<<std::endl;
@@ -959,7 +961,8 @@ void ShapeAnalyzer::refine_adjacency(){
                     }
                 }
                 //if(idx == 1 && component== 0){
-                if(false){
+                //if(false){
+                if(nodes[idx] == 77){
                     std::cout<<"==========idx: "<<idx<<std::endl;
                     std::cout<<"=================== node: "<<nodes[idx]<<std::endl;
                     std::cout<<"inwards normal: "<<inwards_normal<<std::endl;
@@ -985,7 +988,10 @@ void ShapeAnalyzer::refine_adjacency(){
 
             //now add this mapping between the supervoxel and the possible angles
             possible_angles.insert(std::pair<uint32_t, std::set<int>>(nodes[idx], angles_per_node));
+            //generate the angle components data structure that will be used in Dijikstra
+            generate_angles_components_structures(int(nodes[idx]));
         }
+        std::cout<<std::endl;
 
     }
     //now further refine the adjacency by removing all the impossible connections and impossible vertices
@@ -993,6 +999,7 @@ void ShapeAnalyzer::refine_adjacency(){
     //at the same time, generate the map from node to angle to component and the map from node to angle to subset of angles in the same component
     //loop on all the connected components
     std::multimap<uint32_t, uint32_t> angles_refined_adjacency;
+    std::multimap<std::pair<uint32_t, int>, std::pair<uint32_t, int>> angles_extended_adjacency;
     for(int component=0; component<=component_id; component++){
         //get all the nodes in the component:
         std::set<uint32_t> nodes_set=connected_component_to_set_of_nodes.at(component);
@@ -1006,10 +1013,13 @@ void ShapeAnalyzer::refine_adjacency(){
                 nodes_to_connected_component.erase(node);
             }
             else{
-                //generate the angle components data structure that will be used in Dijikstra
-                generate_angles_components_structrures(*it);
+                //generate_angles_components_structrures(*it);
                 pcl::PointXYZRGBA node_center=supervoxel_clusters.at(node)->centroid_;
                 pcl::PointCloud<pcl::PointXYZRGBA> adjacent_supervoxel_centers;
+                //the list of all angle components
+                //std::cout<<"node 1 to component: "<<node<<std::endl;
+                std::vector<int> current_node_angle_components=node_to_angle_components.at(node);
+                //std::cout<<"OK"<<std::endl;
                 //now loop over all the components
                 std::multimap<uint32_t,uint32_t>::iterator adjacent_itr=refined_adjacency.equal_range(node).first;
                 for ( ; adjacent_itr!=refined_adjacency.equal_range(node).second; adjacent_itr++){
@@ -1019,7 +1029,31 @@ void ShapeAnalyzer::refine_adjacency(){
                     if(angles_intersection.size()>0){
                         angles_refined_adjacency.insert(std::pair<uint32_t, uint32_t>(node, adjacent_itr->second));
                         adjacent_supervoxel_centers.push_back(supervoxel_clusters.at(adjacent_itr->second)->centroid_);
+                    
+                        //do the same for the extended adjacency: loop over all the angles component of the current node and all the ones of the adjacent nodes
+                        //remember to always check if a key exists before looping through this map
+                        //the list of the components of angles of the adjacent node
+                        //std::cout<<"node 2 to component: "<<adjacent_itr->second<<std::endl;
+                        std::vector<int> adjacent_node_angle_components=node_to_angle_components.at(adjacent_itr->second);
+                        //std::cout<<"OK"<<std::endl;
+                        for(int ac_idx=0; ac_idx<current_node_angle_components.size(); ac_idx++){
+                            //std::cout<<"pair 1: "<<node<<" "<<ac_idx<<std::endl;
+                            std::set<int> node_component_set=*node_component_to_angles_subset.at(std::pair<int, int>(node, ac_idx));
+                            //std::cout<<"OK"<<std::endl;
+                            for(int ac_jdx=0; ac_jdx<adjacent_node_angle_components.size(); ac_jdx++){
+                                //std::cout<<"pair 1: "<<adjacent_itr->second<<" "<<ac_jdx<<std::endl;
+                                std::set<int> adjacent_component_set=*node_component_to_angles_subset.at(std::pair<int, int>(adjacent_itr->second, ac_jdx));
+                                //std::cout<<"OK"<<std::endl;
+                                std::set<int> component_angles_intersection;
+                                std::set_intersection(node_component_set.begin(), node_component_set.end(), adjacent_component_set.begin(), adjacent_component_set.end(), std::inserter(component_angles_intersection, component_angles_intersection.begin()));
+                                //if the components have an intersection, add this connection to the graph!
+                                extended_refined_adjacency.insert(std::pair<std::pair<uint32_t, int>, std::pair<uint32_t, int>>(std::pair<uint32_t, int>(node, ac_idx), std::pair<uint32_t, int>(adjacent_itr->second, ac_jdx)));
+                            }
+
+                        }
+
                     }
+
                 }
 
                 //now draw this poligon(different color to compare)
@@ -1035,7 +1069,11 @@ void ShapeAnalyzer::refine_adjacency(){
     //assign the new adjacency
     refined_adjacency=angles_refined_adjacency;
 
-    //now visualize the new connections with the angles    
+    //now visualize the new connections with the angles
+
+    //generate the connected components of the further refinef adjacency.
+    std::cout<<"Extended refinement..."<<std::endl;
+    generate_connected_components_list_of_extended_refined_adjacency();    
 }
 
 void ShapeAnalyzer::compute_angle_sequence(std::vector<int> path, int finger_id){
@@ -1334,46 +1372,130 @@ std::vector<double> ShapeAnalyzer::get_distance_sequence(){
     return distance_variations;
 }
 
-void ShapeAnalyzer::generate_angles_components_structrures(int node_id){
+void ShapeAnalyzer::generate_angles_components_structures(int node_id){
+    std::cout<<"n: "<<node_id<<" ";
     //loop through the angles in the possible angle set
     std::set<int> node_angles=possible_angles.at(node_id);
+    std::vector<int> all_angle_components;
     //the std::set is ordered from low to high (lucky us)
     //start the first component, proceed until there is a jump of more than 5 degrees (angle_jump), then start a new component
-    std::set<int> *component_angles_subset=new std::set<int>();
+    std::set<int> *component_angles_subset= new std::set<int>();
     int angle_component=0;
     int prev_angle=0;
+    int first_angle;
     std::set<int>::iterator it=node_angles.begin();
     //add this angle to the structure
     component_angles_subset->insert(*it);
     node_angle_to_angle_component.insert(std::pair<std::pair<int, int>, int>(std::pair<int, int>(node_id, *it), angle_component));
     prev_angle=*it;
+    first_angle=*it;
     //if it only has one angle, only one component and return
     if(node_angles.size()<2){
-        node_angle_to_connected_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>*>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
+        //node_angle_to_connected_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>*>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
+        all_angle_components.push_back(angle_component);
+        node_component_to_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>*>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
+        node_to_angle_components.insert(std::pair<int, std::vector<int>>(node_id, all_angle_components));
         return;
     }
     it++;
+    std::cout<<"components: "<<angle_component<<" ";
     //std::cout<<"----------debug"<<std::endl;
     for(; it!=node_angles.end(); it++){
         //std::cout<<*it<<" ";
         //check if there has been a bigger jump than angle_jump (all the angles are positive and as said the set is ordered)
         if((*it-prev_angle)>angle_jump){
             //add the angles obtained so far to the structure
-            node_angle_to_connected_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>*>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
+            //node_angle_to_connected_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>*>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
+            all_angle_components.push_back(angle_component);
+            node_component_to_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>*>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
             //advance the component
             angle_component++;
+            std::cout<<angle_component<<" ";
             //clear the subset angles and add the current angle to it
-            component_angles_subset=new std::set<int>();    
+            component_angles_subset= new std::set<int>();    
         }
         //insert the angle in the set and store the prev value
         node_angle_to_angle_component.insert(std::pair<std::pair<int, int>, int>(std::pair<int, int>(node_id, *it), angle_component));
         component_angles_subset->insert(*it);
         prev_angle=*it;
     }
-    //std::cout<<std::endl;
+    
+    //check if the last component is connected to the first one (last angle 360-angle jump and first angle 0)
+    int last_angle=prev_angle;
+    if(angle_component>0 &&first_angle==0 && last_angle==(360 - angle_jump)){
+        std::cout<<"merging"<<std::endl;
+        //instead of adding this additional component, merge the current set with the first one
+        std::set<int> *first_subset=node_component_to_angles_subset.at(std::pair<int, int>(node_id, 0));
+        std::set<int> *union_set=new std::set<int>();
+        std::set_union(first_subset->begin(), first_subset->end(), component_angles_subset->begin(), component_angles_subset->end(), std::inserter(*union_set, union_set->begin()));
+        node_component_to_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>*>(std::pair<int, int>(node_id, 0), union_set));
+        //change all the nodes in the set into the first component
+        for(std::set<int>::iterator angles_iterator=component_angles_subset->begin(); angles_iterator!=component_angles_subset->end(); angles_iterator++){
+            node_angle_to_angle_component.at(std::pair<int, int>(node_id, *angles_iterator))=0;
+        }
+        node_to_angle_components.insert(std::pair<int, std::vector<int>>(node_id, all_angle_components));
+        return;
+
+    }
+    std::cout<<std::endl;
     //add the last component
-    node_angle_to_connected_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>*>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
+    //node_angle_to_connected_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
+    all_angle_components.push_back(angle_component);
+    node_component_to_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>*>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
+
+    node_to_angle_components.insert(std::pair<int, std::vector<int>>(node_id, all_angle_components));
+
     return;
 
 }
 
+void ShapeAnalyzer::generate_connected_components_list_of_extended_refined_adjacency(){
+//analyze the refined adjacency to generate a map of the connected components (BFS)
+    std::set<std::pair<uint32_t, int>> examined_nodes;
+    //std::cout<<"000000"<<std::endl;
+    std::multimap<std::pair<uint32_t, int>, std::pair<uint32_t, int>>::iterator label_itr=extended_refined_adjacency.begin();
+    int component_id=-1;
+    //std::cout<<"AAAAAA"<<std::endl;
+    for ( ; label_itr!=extended_refined_adjacency.end();) {
+        //get the extended node "id" id
+        //std::cout<<"BBBBBBB"<<std::endl;
+
+        std::pair<uint32_t, int> node_label = label_itr->first;
+        if(!(examined_nodes.find(node_label)!=examined_nodes.end())){
+            //this node had not been analyzed before! It means it is a new connected component
+            component_id++;
+            int num_components=0;
+            std::set<std::pair<uint32_t, int>> discovered_nodes;
+            std::stack<std::pair<uint32_t, int>> S;
+            S.push(node_label);
+            while (!S.empty()){
+                //std::cout<<"CCCCCCC"<<std::endl;
+                std::pair<uint32_t, int> v=S.top();
+                S.pop();
+                if(discovered_nodes.find(v)==discovered_nodes.end()){
+                    discovered_nodes.insert(v); //for the local bfs
+                    examined_nodes.insert(v); //for the global analysis
+
+                    extended_nodes_to_connected_component.insert(std::pair<std::pair<uint32_t, int>, int>(v, component_id));
+
+                    //now get all the adjacent nodes
+                    //std::cout<<"DDDDDD"<<std::endl;
+                    //check if this node has anything adjacent first of all!
+                    if(extended_refined_adjacency.count(v)>0){
+                        std::multimap<std::pair<uint32_t, int>, std::pair<uint32_t, int>>::iterator adjacent_itr=extended_refined_adjacency.equal_range(v).first;
+                        for ( ; adjacent_itr!=extended_refined_adjacency.equal_range(v).second; adjacent_itr++){
+                            S.push(adjacent_itr->second);
+                        }
+                    }
+                }
+            }
+
+            extended_connected_component_to_set_of_nodes_angle.insert(std::pair<int, std::set<std::pair<uint32_t, int>>>(component_id, discovered_nodes));
+        }
+
+        //move the iterator to the next label
+        label_itr=extended_refined_adjacency.upper_bound(node_label);
+    }
+
+    std::cout<<"Found EXTENDED connected components: "<<component_id+1<<std::endl;
+}
