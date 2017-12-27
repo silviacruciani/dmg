@@ -58,6 +58,7 @@ namespace shape_analysis{
             std::stack<int> get_path(std::multimap<uint32_t,uint32_t> graph, int init, int end, Eigen::Vector3f grasp_line, int opposite_component);
             void compute_angle_sequence(std::vector<int> path, int finger_id);
             void compute_contact_distances(std::vector<int> path);
+            void generate_angles_components_structrures(int node_id);
             
             double l_finger;
             pcl::PointCloud<pcl::PointXYZ>::Ptr object_shape;
@@ -104,6 +105,11 @@ namespace shape_analysis{
 
             //used to refine the collision detection and check the normal (inwards or outwards the object)
             Eigen::Vector3f object_center;
+
+            //structures for the angles component
+            std::map<std::pair<int, int>, std::set<int>*> node_angle_to_connected_angles_subset;
+            std::map<std::pair<int, int>, int> node_angle_to_angle_component;
+            int angle_jump;
 
     };
 }

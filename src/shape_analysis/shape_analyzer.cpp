@@ -24,6 +24,7 @@ ShapeAnalyzer::ShapeAnalyzer(){
     spatial_importance=0.9;
     normal_importance=1.0;
     refinement_iterations=8;
+    angle_jump=5;
 }
 
 ShapeAnalyzer::~ShapeAnalyzer(){
@@ -408,7 +409,7 @@ std::stack<int> ShapeAnalyzer::get_path(std::multimap<uint32_t,uint32_t> graph, 
                     int K = 3;//three nearest neighbours
                     std::vector<int> pointIdxNKNSearch(K);
                     std::vector<float> pointNKNSquaredDistance(K);
-                    //improve this distance according to the change in notmal (TO DO)
+                    //improve this distance according to the change in normal (TO DO)
                     double slave_dist=100;
                     pcl::PointXYZRGBA input;
                     input.x=intersection_point(0);
@@ -729,7 +730,7 @@ void ShapeAnalyzer::refine_adjacency(){
 
     //discretization step of 5 degrees:
     std::set<int> all_angles;
-    for(int i=0; i<360; i+=5){
+    for(int i=0; i<360; i+=angle_jump){
         all_angles.insert(i);
     }
 
@@ -891,13 +892,13 @@ void ShapeAnalyzer::refine_adjacency(){
                             angle=angle*180.0/M_PI;
                             //std::cout<<"    angle: "<<angle<<std::endl;
                             //approximate the angle in multiples of 5
-                            double round_angle=angle+5/2;
+                            double round_angle=angle+angle_jump/2;
                             //round_angle-=floor(round_angle)%5;
                             //convert in int
                             int int_round_angle=floor(round_angle);
-                            int int_angle=int_round_angle-(int_round_angle%5);
-                            if(int_angle%5!=0){
-                                std::cout<<"ERROR IN THE ROUNDING TO 5"<<std::endl;
+                            int int_angle=int_round_angle-(int_round_angle%angle_jump);
+                            if(int_angle%angle_jump!=0){
+                                std::cout<<"ERROR IN THE ROUNDING TO "<<angle_jump<<std::endl;
                             }
                             //convert from 360 to 0:
                             if(int_round_angle==360){
@@ -935,13 +936,13 @@ void ShapeAnalyzer::refine_adjacency(){
                             angle=angle*180.0/M_PI;
                             //std::cout<<"    angle: "<<angle<<std::endl;
                             //approximate the angle in multiples of 5
-                            double round_angle=angle+5/2;
+                            double round_angle=angle+angle_jump/2;
                             //round_angle-=floor(round_angle)%5;
                             //convert in int
                             int int_round_angle=floor(round_angle);
-                            int int_angle=int_round_angle-(int_round_angle%5);
+                            int int_angle=int_round_angle-(int_round_angle%angle_jump);
                             if(int_angle%5!=0){
-                                std::cout<<"ERROR IN THE ROUNDING TO 5"<<std::endl;
+                                std::cout<<"ERROR IN THE ROUNDING TO "<<angle_jump<<std::endl;
                             }
                             //convert from 360 to 0:
                             if(int_round_angle==360){
@@ -957,7 +958,8 @@ void ShapeAnalyzer::refine_adjacency(){
                         }
                     }
                 }
-                if(idx == 1 && component== 0){
+                //if(idx == 1 && component== 0){
+                if(false){
                     std::cout<<"==========idx: "<<idx<<std::endl;
                     std::cout<<"=================== node: "<<nodes[idx]<<std::endl;
                     std::cout<<"inwards normal: "<<inwards_normal<<std::endl;
@@ -988,6 +990,7 @@ void ShapeAnalyzer::refine_adjacency(){
     }
     //now further refine the adjacency by removing all the impossible connections and impossible vertices
     std::cout<<"Refining the adjacency list according to the possible angles"<<std::endl;
+    //at the same time, generate the map from node to angle to component and the map from node to angle to subset of angles in the same component
     //loop on all the connected components
     std::multimap<uint32_t, uint32_t> angles_refined_adjacency;
     for(int component=0; component<=component_id; component++){
@@ -1003,6 +1006,8 @@ void ShapeAnalyzer::refine_adjacency(){
                 nodes_to_connected_component.erase(node);
             }
             else{
+                //generate the angle components data structure that will be used in Dijikstra
+                generate_angles_components_structrures(*it);
                 pcl::PointXYZRGBA node_center=supervoxel_clusters.at(node)->centroid_;
                 pcl::PointCloud<pcl::PointXYZRGBA> adjacent_supervoxel_centers;
                 //now loop over all the components
@@ -1175,21 +1180,21 @@ void ShapeAnalyzer::compute_angle_sequence(std::vector<int> path, int finger_id)
         desired_angle+=2*M_PI;
     }
 
-    //convert this angle into degrees and with intervals of 5
+    //convert this angle into degrees and with intervals of 5 (angle_jump variable)
     initial_angle=initial_angle*180.0/M_PI;
     desired_angle=desired_angle*180.0/M_PI;
-    double round_angle=initial_angle+5/2;
+    double round_angle=initial_angle+angle_jump/2;
     //convert in int
     int int_initial_angle=floor(round_angle);
     //convert from 360 to 0:
-    int_initial_angle=int_initial_angle-(int_initial_angle%5);
+    int_initial_angle=int_initial_angle-(int_initial_angle%angle_jump);
     if(int_initial_angle==360){
         int_initial_angle=0;
     }
     //same for desired angle
-    round_angle=desired_angle+5/2;
+    round_angle=desired_angle+angle_jump/2;
     int int_desired_angle=floor(round_angle);
-    int_desired_angle=int_desired_angle-(int_desired_angle%5);
+    int_desired_angle=int_desired_angle-(int_desired_angle%angle_jump);
     if(int_desired_angle==360){
         int_desired_angle=0;
     }
@@ -1214,18 +1219,18 @@ void ShapeAnalyzer::compute_angle_sequence(std::vector<int> path, int finger_id)
     //convert this angle into degrees and with intervals of 5
     slave_initial_angle=slave_initial_angle*180.0/M_PI;
     slave_desired_angle=slave_desired_angle*180.0/M_PI;
-    double slave_round_angle=slave_initial_angle+5/2;
+    double slave_round_angle=slave_initial_angle+angle_jump/2;
     //convert in int
     int slave_int_initial_angle=floor(slave_round_angle);
     //convert from 360 to 0:
-    slave_int_initial_angle=slave_int_initial_angle-(slave_int_initial_angle%5);
+    slave_int_initial_angle=slave_int_initial_angle-(slave_int_initial_angle%angle_jump);
     if(slave_int_initial_angle==360){
         slave_int_initial_angle=0;
     }
     //same for desired angle
-    slave_round_angle=slave_desired_angle+5/2;
+    slave_round_angle=slave_desired_angle+angle_jump/2;
     int slave_int_desired_angle=floor(slave_round_angle);
-    slave_int_desired_angle=slave_int_desired_angle-(slave_int_desired_angle%5);
+    slave_int_desired_angle=slave_int_desired_angle-(slave_int_desired_angle%angle_jump);
     if(slave_int_desired_angle==360){
         slave_int_desired_angle=0;
     }
@@ -1327,5 +1332,48 @@ std::vector<double> ShapeAnalyzer::get_angle_sequence(){
 
 std::vector<double> ShapeAnalyzer::get_distance_sequence(){
     return distance_variations;
+}
+
+void ShapeAnalyzer::generate_angles_components_structrures(int node_id){
+    //loop through the angles in the possible angle set
+    std::set<int> node_angles=possible_angles.at(node_id);
+    //the std::set is ordered from low to high (lucky us)
+    //start the first component, proceed until there is a jump of more than 5 degrees (angle_jump), then start a new component
+    std::set<int> *component_angles_subset=new std::set<int>();
+    int angle_component=0;
+    int prev_angle=0;
+    std::set<int>::iterator it=node_angles.begin();
+    //add this angle to the structure
+    component_angles_subset->insert(*it);
+    node_angle_to_angle_component.insert(std::pair<std::pair<int, int>, int>(std::pair<int, int>(node_id, *it), angle_component));
+    prev_angle=*it;
+    //if it only has one angle, only one component and return
+    if(node_angles.size()<2){
+        node_angle_to_connected_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>*>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
+        return;
+    }
+    it++;
+    //std::cout<<"----------debug"<<std::endl;
+    for(; it!=node_angles.end(); it++){
+        //std::cout<<*it<<" ";
+        //check if there has been a bigger jump than angle_jump (all the angles are positive and as said the set is ordered)
+        if((*it-prev_angle)>angle_jump){
+            //add the angles obtained so far to the structure
+            node_angle_to_connected_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>*>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
+            //advance the component
+            angle_component++;
+            //clear the subset angles and add the current angle to it
+            component_angles_subset=new std::set<int>();    
+        }
+        //insert the angle in the set and store the prev value
+        node_angle_to_angle_component.insert(std::pair<std::pair<int, int>, int>(std::pair<int, int>(node_id, *it), angle_component));
+        component_angles_subset->insert(*it);
+        prev_angle=*it;
+    }
+    //std::cout<<std::endl;
+    //add the last component
+    node_angle_to_connected_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>*>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
+    return;
+
 }
 
