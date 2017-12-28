@@ -1046,11 +1046,11 @@ void ShapeAnalyzer::refine_adjacency(){
                         //std::cout<<"OK"<<std::endl;
                         for(int ac_idx=0; ac_idx<current_node_angle_components.size(); ac_idx++){
                             //std::cout<<"pair 1: "<<node<<" "<<ac_idx<<std::endl;
-                            std::set<int> node_component_set=*node_component_to_angles_subset.at(std::pair<int, int>(node, ac_idx));
+                            std::set<int> node_component_set=node_component_to_angles_subset.at(std::pair<int, int>(node, ac_idx));
                             //std::cout<<"OK"<<std::endl;
                             for(int ac_jdx=0; ac_jdx<adjacent_node_angle_components.size(); ac_jdx++){
                                 //std::cout<<"pair 1: "<<adjacent_itr->second<<" "<<ac_jdx<<std::endl;
-                                std::set<int> adjacent_component_set=*node_component_to_angles_subset.at(std::pair<int, int>(adjacent_itr->second, ac_jdx));
+                                std::set<int> adjacent_component_set=node_component_to_angles_subset.at(std::pair<int, int>(adjacent_itr->second, ac_jdx));
                                 //std::cout<<"OK"<<std::endl;
                                 std::set<int> component_angles_intersection;
                                 std::set_intersection(node_component_set.begin(), node_component_set.end(), adjacent_component_set.begin(), adjacent_component_set.end(), std::inserter(component_angles_intersection, component_angles_intersection.begin()));
@@ -1395,13 +1395,13 @@ void ShapeAnalyzer::generate_angles_components_structures(int node_id){
     std::vector<int> all_angle_components;
     //the std::set is ordered from low to high (lucky us)
     //start the first component, proceed until there is a jump of more than 5 degrees (angle_jump), then start a new component
-    std::set<int> *component_angles_subset= new std::set<int>();
+    std::set<int> component_angles_subset;
     int angle_component=0;
     int prev_angle=0;
     int first_angle;
     std::set<int>::iterator it=node_angles.begin();
     //add this angle to the structure
-    component_angles_subset->insert(*it);
+    component_angles_subset.insert(*it);
     node_angle_to_angle_component.insert(std::pair<std::pair<int, int>, int>(std::pair<int, int>(node_id, *it), angle_component));
     prev_angle=*it;
     first_angle=*it;
@@ -1409,7 +1409,7 @@ void ShapeAnalyzer::generate_angles_components_structures(int node_id){
     if(node_angles.size()<2){
         //node_angle_to_connected_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>*>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
         all_angle_components.push_back(angle_component);
-        node_component_to_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>*>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
+        node_component_to_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
         node_to_angle_components.insert(std::pair<int, std::vector<int>>(node_id, all_angle_components));
         return;
     }
@@ -1423,19 +1423,19 @@ void ShapeAnalyzer::generate_angles_components_structures(int node_id){
             //add the angles obtained so far to the structure
             //node_angle_to_connected_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>*>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
             all_angle_components.push_back(angle_component);
-            node_component_to_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>*>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
+            node_component_to_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
             //advance the component
             angle_component++;
             std::cout<<angle_component<<" ";
             //clear the subset angles and add the current angle to it
-            component_angles_subset= new std::set<int>();    
+            component_angles_subset=std::set<int>();    
         }
         //insert the angle in the set and store the prev value
         if(node_id==39){
             std::cout<<" "<<*it;
         }
         node_angle_to_angle_component.insert(std::pair<std::pair<int, int>, int>(std::pair<int, int>(node_id, *it), angle_component));
-        component_angles_subset->insert(*it);
+        component_angles_subset.insert(*it);
         prev_angle=*it;
     }
     
@@ -1447,12 +1447,12 @@ void ShapeAnalyzer::generate_angles_components_structures(int node_id){
             std::cout<<" "<<*it;
         }
         //instead of adding this additional component, merge the current set with the first one
-        std::set<int> *first_subset=node_component_to_angles_subset.at(std::pair<int, int>(node_id, 0));
-        std::set<int> *union_set=new std::set<int>();
-        std::set_union(first_subset->begin(), first_subset->end(), component_angles_subset->begin(), component_angles_subset->end(), std::inserter(*union_set, union_set->begin()));
-        node_component_to_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>*>(std::pair<int, int>(node_id, 0), union_set));
+        std::set<int> first_subset=node_component_to_angles_subset.at(std::pair<int, int>(node_id, 0));
+        std::set<int> union_set;
+        std::set_union(first_subset.begin(), first_subset.end(), component_angles_subset.begin(), component_angles_subset.end(), std::inserter(union_set, union_set.begin()));
+        node_component_to_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>>(std::pair<int, int>(node_id, 0), union_set));
         //change all the nodes in the set into the first component
-        for(std::set<int>::iterator angles_iterator=component_angles_subset->begin(); angles_iterator!=component_angles_subset->end(); angles_iterator++){
+        for(std::set<int>::iterator angles_iterator=component_angles_subset.begin(); angles_iterator!=component_angles_subset.end(); angles_iterator++){
             node_angle_to_angle_component.at(std::pair<int, int>(node_id, *angles_iterator))=0;
         }
         node_to_angle_components.insert(std::pair<int, std::vector<int>>(node_id, all_angle_components));
@@ -1463,7 +1463,7 @@ void ShapeAnalyzer::generate_angles_components_structures(int node_id){
     //add the last component
     //node_angle_to_connected_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
     all_angle_components.push_back(angle_component);
-    node_component_to_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>*>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
+    node_component_to_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
 
     node_to_angle_components.insert(std::pair<int, std::vector<int>>(node_id, all_angle_components));
 
@@ -1527,19 +1527,11 @@ std::pair<std::stack<std::pair<int, int>>, std::stack<int>> ShapeAnalyzer::get_e
     std::pair<std::stack<std::pair<int, int>>, std::stack<int>> empty;
 
     if(node_angle_to_angle_component.count(std::pair<int, int>(init, initial_angle))<1){
-        std::cout<<"invalid value in node: "<<init<<" of angle"<<initial_angle<<std::endl;
+        std::cout<<"invalid value in node: "<<init<<" of angle "<<initial_angle<<std::endl;
         return empty;
     }
     if(node_angle_to_angle_component.count(std::pair<int, int>(end, desired_angle))<1){
-        std::cout<<"invalid value in node: "<<end<<" of angle"<<desired_angle<<std::endl;
-        return empty;
-    }
-    if(node_angle_to_angle_component.count(opposite_component_init)<1){
-        std::cout<<"invalid value in node: "<<opposite_component_init.first<<" of angle"<<opposite_component_init.second<<std::endl;
-        return empty;
-    }
-    if(node_angle_to_angle_component.count(opposite_component_end)<1){
-        std::cout<<"invalid value in node: "<<opposite_component_end.first<<" of angle"<<opposite_component_end.second<<std::endl;
+        std::cout<<"invalid value in node: "<<end<<" of angle "<<desired_angle<<std::endl;
         return empty;
     }
 
@@ -1548,18 +1540,13 @@ std::pair<std::stack<std::pair<int, int>>, std::stack<int>> ShapeAnalyzer::get_e
     std::pair<int, int> init_node(init, initial_angle_component);
     std::pair<int, int> goal_node(end, desired_angle_component);
 
-    int slave_initial_angle_component=node_angle_to_angle_component.at(opposite_component_init);
-    int slave_desired_angle_component=node_angle_to_angle_component.at(opposite_component_end);
-    std::pair<int, int> slave_init_node(opposite_component_init.first, initial_angle_component);
-    std::pair<int, int> slave_goal_node(opposite_component_end.first, desired_angle_component);
-
     if(extended_nodes_to_connected_component.count(goal_node)<1){
         std::cout<<"invalid value of node: "<<goal_node.first<<" "<<goal_node.second<<std::endl;
         return empty;
     }
     //check if a path exists. i.e. the elements are in the connencted component:
     if(extended_nodes_to_connected_component.at(init_node)!=extended_nodes_to_connected_component.at(goal_node)||
-        extended_nodes_to_connected_component.at(slave_init_node)!=extended_nodes_to_connected_component.at(slave_goal_node)){
+        extended_nodes_to_connected_component.at(opposite_component_init)!=extended_nodes_to_connected_component.at(opposite_component_end)){
         std::cout<<"The nodes are not connected. Regrasping is needed."<<std::endl;
         
         return empty;
@@ -1789,11 +1776,13 @@ void ShapeAnalyzer::compute_extended_path(int finger_id){
     std::vector<std::pair<int, int>> path_extended;
     std::vector<int> path;
     if(finger_id==1){
+        std::cout<<"slave angles A: "<<int_angles.second.first<<" "<<int_angles.second.second<<std::endl;
         std::pair<int, int> opposite_component_init(initial_centroid_idx_2, node_angle_to_angle_component.at(std::pair<int, int>(initial_centroid_idx_2, int_angles.second.first)));
         std::pair<int, int> opposite_component_end(desired_centroid_idx_2, node_angle_to_angle_component.at(std::pair<int, int>(desired_centroid_idx_2, int_angles.second.second)));
         S_solution=get_extended_path(extended_refined_adjacency, initial_centroid_idx_1, desired_centroid_idx_1, grasp_line, opposite_component_init, opposite_component_end, int_angles.first.first, int_angles.first.second);
     }
     else{
+        std::cout<<"slave angles B: "<<int_angles.second.first<<" "<<int_angles.second.second<<std::endl;
         std::pair<int, int> opposite_component_init(initial_centroid_idx_1, node_angle_to_angle_component.at(std::pair<int, int>(initial_centroid_idx_1, int_angles.second.first)));
         std::pair<int, int> opposite_component_end(desired_centroid_idx_1, node_angle_to_angle_component.at(std::pair<int, int>(desired_centroid_idx_1, int_angles.second.second)));
         S_solution=get_extended_path(extended_refined_adjacency, initial_centroid_idx_2, desired_centroid_idx_2, -grasp_line, opposite_component_init, opposite_component_end, int_angles.first.first, int_angles.first.second);
@@ -2092,16 +2081,17 @@ std::pair<std::pair<int, int>, std::pair<int, int>> ShapeAnalyzer::get_int_angle
     }
 
     //first the master int angle (initial, desired) and then the slave
-    return std::pair<std::pair<int, int>, std::pair<int, int>>(std::pair<int, int>(int_initial_angle, int_desired_angle), std::pair<int, int>(slave_int_initial_angle, slave_int_desired_angle));
+    return std::pair<std::pair<int, int>, std::pair<int, int>>(std::pair<int, int>(int_initial_angle, int_desired_angle), std::pair<int, int>(slave_int_initial_angle, slave_current_angle));
 
 } 
 
 void ShapeAnalyzer::compute_extended_angle_sequence(std::vector<std::pair<int, int>> path, int finger_id, int init_angle, int desired_angle){
-    int index=path.size();
-    //std::cout<<"EEEEEEEEE"<<std::endl;
-    std::set<int> current_node_angles=*node_component_to_angles_subset.at(path[path.size()-1]);
+    int index=path.size()-1;
+    std::cout<<"EEEEEEEEE"<<std::endl;
+    std::set<int> current_node_angles=node_component_to_angles_subset.at(path[path.size()-1]);
     std::cout<<"OK"<<std::endl;
     std::set<int> next_node_angles;
+    angle_sequence=std::vector<double>();
     angle_sequence.resize(path.size());
     angle_sequence[index]=double(desired_angle)*M_PI/180.0;
     index=index-1;
@@ -2109,11 +2099,17 @@ void ShapeAnalyzer::compute_extended_angle_sequence(std::vector<std::pair<int, i
     //std::cout<<"Index: "<<index<<std::endl;
     while(index>=0){
         next_node_angles=current_node_angles;
-        //std::cout<<"FFFFFFFF"<<std::endl;
-        current_node_angles=*node_component_to_angles_subset.at(path[index]);
+        std::cout<<"FFFFFFFF node: "<<path[index].first<<" "<<path[index].second<<std::endl;
+        if(node_component_to_angles_subset.count(path[index])<1){
+            std::cout<<"Error in getting angle subset"<<std::cout;
+            return;
+        }
+        current_node_angles=node_component_to_angles_subset.at(path[index]);
         std::cout<<"OK"<<std::endl;
+        std::cout<<"the sets are: "<<next_node_angles.size()<<" and "<<current_node_angles.size()<<std::endl;
         std::set<int> intersection;
         std::set_intersection(current_node_angles.begin(), current_node_angles.end(), next_node_angles.begin(), next_node_angles.end(), std::inserter(intersection, intersection.begin()));
+        std::cout<<"The error is not here"<<std::endl;
         //check if the current angle is in the intersection (i.e. the translation can be with the gripper at this angle) 
         if(intersection.find(current_angle)!=intersection.end()){
             angle_sequence[index]=double(current_angle)*M_PI/180.0;
@@ -2129,9 +2125,9 @@ void ShapeAnalyzer::compute_extended_angle_sequence(std::vector<std::pair<int, i
         }
         index=index-1;
         //std::cout<<"Index: "<<index<<std::endl;
-        //std::cout<<"GGGGGGG"<<std::endl;
+        std::cout<<"GGGGGGG"<<std::endl;
     }
-    //std::cout<<"HHHHHHHHHHH"<<std::endl;
+    std::cout<<"HHHHHHHHHHH"<<std::endl;
 
     //now change the list so that it becomes a list of deltas
     double old_angle=init_angle*M_PI/180; //this is the initial angle

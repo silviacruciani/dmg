@@ -114,7 +114,7 @@ namespace shape_analysis{
             //structures for the angles component
             //std::map<std::pair<int, int>, std::set<int>*> node_angle_to_connected_angles_subset;
             std::map<std::pair<int, int>, int> node_angle_to_angle_component;
-            std::map<std::pair<int, int>, std::set<int>*> node_component_to_angles_subset;
+            std::map<std::pair<int, int>, std::set<int>> node_component_to_angles_subset;
             std::map<int, std::vector<int>> node_to_angle_components;
             int angle_jump;
 
