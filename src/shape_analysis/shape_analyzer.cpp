@@ -854,7 +854,7 @@ void ShapeAnalyzer::refine_adjacency(){
             Eigen::Vector3f control_vector=t_vector+0.5*nx;
             bool inwards_normal=true;
             if(false){
-            //if(component==0 && idx == 1){
+            //if(nodes[idx] == 77){
                 std::cout<<"sphere radius: "<<squared_sphere_radius<<std::endl;
                 std::cout<<"t_vector: "<<t_vector.transpose()<<std::endl;
                 std::cout<<"obj center: "<<object_center.transpose()<<std::endl;
@@ -864,6 +864,7 @@ void ShapeAnalyzer::refine_adjacency(){
             }
             if((control_vector(0)-object_center(0))*(control_vector(0)-object_center(0))+(control_vector(1)-object_center(1))*(control_vector(1)-object_center(1))+
                 (control_vector(2)-object_center(2))*(control_vector(2)-object_center(2)) > squared_sphere_radius){
+                //if the control vector has one component too close to the object center, do additional checks.
                 inwards_normal=false;
             }
 
@@ -871,6 +872,73 @@ void ShapeAnalyzer::refine_adjacency(){
 
             if(kdtree.radiusSearch(searchPoint, l_finger+3.0, pointIdxRadiusSearch, pointRadiusSquaredDistance)>0){
                 pcl::PointCloud<pcl::PointXYZ>::Ptr neighbour_cloud(new pcl::PointCloud<pcl::PointXYZ>());
+                //waste time in additional checks (do this only if the node is somehow not in the bounding box:
+                int inwards_count=0;
+                int outwards_count=0;
+                bool found_y_neg_i=false;
+                bool found_z_neg_i=false;
+                bool found_y_pos_i=false;
+                bool found_z_pos_i=false;
+                bool found_y_neg_o=false;
+                bool found_z_neg_o=false;
+                bool found_y_pos_o=false;
+                bool found_z_pos_o=false;
+
+                for(int i=0; i<pointIdxRadiusSearch.size(); i++){
+                    Eigen::Vector3f point;
+                    point<<object_shape->at(pointIdxRadiusSearch[i]).x, object_shape->at(pointIdxRadiusSearch[i]).y, object_shape->at(pointIdxRadiusSearch[i]).z;
+                    Eigen::Vector3f transformed_point=R*point+translation; 
+
+                    //the x axis corresponds to the normal. the ny axis corresponds to the 0 angle
+                    //check the x component: (for now assume nx is always pointing inwards from the object's center)
+                    if(transformed_point(0)<-3.0 && transformed_point(0)>-5.0){
+                        outwards_count++;
+                        if (transformed_point(1)<0){
+                            found_y_neg_o=true;
+                        }
+                        else if(transformed_point(1)>0){
+                            found_y_pos_o=true;
+                        }
+                        if(transformed_point(2)<0){
+                            found_z_neg_o=true;
+                        }
+                        else if(transformed_point(2)>0){
+                            found_z_pos_o=true;
+                        }
+                    }
+                    else if(transformed_point(0)>3.0 && transformed_point(0)<5.0){
+                        inwards_count++;
+                        if (transformed_point(1)<0){
+                            found_y_neg_i=true;
+                        }
+                        else if(transformed_point(1)>0){
+                            found_y_pos_i=true;
+                        }
+                        if(transformed_point(2)<0){
+                            found_z_neg_i=true;
+                        }
+                        else if(transformed_point(2)>0){
+                            found_z_pos_i=true;
+                        }
+                    }
+                }
+                //inwards_normal=(inwards_count>outwards_count);
+                //if(nodes[idx] == 77){
+                if(false){
+                    std::cout<<"found inwards pos, neg: "<<found_y_neg_i<<" "<<found_y_pos_i<<" "<<found_z_neg_i<<" "<<found_z_pos_i<<std::endl;
+                    std::cout<<"INWARDS COUNT: "<<inwards_count<<std::endl;
+                    std::cout<<"found outwards pos, neg: "<<found_y_neg_o<<" "<<found_y_pos_o<<" "<<found_z_neg_o<<" "<<found_z_pos_o<<std::endl;
+                    std::cout<<"OUTWARDS COUNT: "<<outwards_count<<std::endl;
+                }
+                if (!(found_y_neg_o && found_y_pos_o && found_z_neg_o && found_z_pos_o && found_y_neg_i && found_y_pos_i && found_z_neg_i && found_z_pos_i)){
+                    if(found_y_neg_o && found_y_pos_o && found_z_neg_o && found_z_pos_o){
+                        inwards_normal=false;
+                    } 
+                    else if(found_y_neg_i && found_y_pos_i && found_z_neg_i && found_z_pos_i){
+                        inwards_normal=true;
+                    }
+                }
+                
                 for(int i=0; i<pointIdxRadiusSearch.size(); i++){
                     //check if the distance is larger
                     if(pointRadiusSquaredDistance[i]>=(l_finger-2.0)*(l_finger-2.0)){
@@ -969,8 +1037,8 @@ void ShapeAnalyzer::refine_adjacency(){
                     }
                 }
                 //if(idx == 1 && component== 0){
-                //if(false){
-                if(nodes[idx] == 77){
+                if(false){
+                //if(nodes[idx] == 77){
                     std::cout<<"==========idx: "<<idx<<std::endl;
                     std::cout<<"=================== node: "<<nodes[idx]<<std::endl;
                     std::cout<<"inwards normal: "<<inwards_normal<<std::endl;
@@ -999,7 +1067,7 @@ void ShapeAnalyzer::refine_adjacency(){
             //generate the angle components data structure that will be used in Dijikstra
             generate_angles_components_structures(int(nodes[idx]));
         }
-        std::cout<<std::endl;
+        //std::cout<<std::endl;
 
     }
     //now further refine the adjacency by removing all the impossible connections and impossible vertices
@@ -1385,10 +1453,7 @@ std::vector<double> ShapeAnalyzer::get_distance_sequence(){
 }
 
 void ShapeAnalyzer::generate_angles_components_structures(int node_id){
-    if(node_id==39){
-            std::cout<<" ++++++++++++++++++++++++++++++++++++++++++++++++++++++"<<std::endl;
-        }
-    std::cout<<"n: "<<node_id<<" ";
+    //std::cout<<"n: "<<node_id<<" ";
 
     //loop through the angles in the possible angle set
     std::set<int> node_angles=possible_angles.at(node_id);
@@ -1414,7 +1479,7 @@ void ShapeAnalyzer::generate_angles_components_structures(int node_id){
         return;
     }
     it++;
-    std::cout<<"components: "<<angle_component<<" ";
+    //std::cout<<"components: "<<angle_component<<" ";
     //std::cout<<"----------debug"<<std::endl;
     for(; it!=node_angles.end(); it++){
         //std::cout<<*it<<" ";
@@ -1426,14 +1491,11 @@ void ShapeAnalyzer::generate_angles_components_structures(int node_id){
             node_component_to_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
             //advance the component
             angle_component++;
-            std::cout<<angle_component<<" ";
+            //std::cout<<angle_component<<" ";
             //clear the subset angles and add the current angle to it
             component_angles_subset=std::set<int>();    
         }
         //insert the angle in the set and store the prev value
-        if(node_id==39){
-            std::cout<<" "<<*it;
-        }
         node_angle_to_angle_component.insert(std::pair<std::pair<int, int>, int>(std::pair<int, int>(node_id, *it), angle_component));
         component_angles_subset.insert(*it);
         prev_angle=*it;
@@ -1442,10 +1504,7 @@ void ShapeAnalyzer::generate_angles_components_structures(int node_id){
     //check if the last component is connected to the first one (last angle 360-angle jump and first angle 0)
     int last_angle=prev_angle;
     if(angle_component>0 &&first_angle==0 && last_angle==(360 - angle_jump)){
-        std::cout<<"merging"<<std::endl;
-        if(node_id==39){
-            std::cout<<" "<<*it;
-        }
+        //std::cout<<"merging"<<std::endl;
         //instead of adding this additional component, merge the current set with the first one
         std::set<int> first_subset=node_component_to_angles_subset.at(std::pair<int, int>(node_id, 0));
         std::set<int> union_set;
@@ -1459,7 +1518,7 @@ void ShapeAnalyzer::generate_angles_components_structures(int node_id){
         return;
 
     }
-    std::cout<<std::endl;
+    //std::cout<<std::endl;
     //add the last component
     //node_angle_to_connected_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
     all_angle_components.push_back(angle_component);
@@ -1477,7 +1536,7 @@ void ShapeAnalyzer::generate_connected_components_list_of_extended_refined_adjac
     //std::cout<<"000000"<<std::endl;
     std::multimap<std::pair<int, int>, std::pair<int, int>>::iterator label_itr=extended_refined_adjacency.begin();
     int component_id=-1;
-    std::cout<<"NOOOOOODES::: "<<std::endl;
+    //std::cout<<"NOOOOOODES::: "<<std::endl;
     for ( ; label_itr!=extended_refined_adjacency.end();) {
         //get the extended node "id" id
         //std::cout<<"BBBBBBB"<<std::endl;
@@ -1501,7 +1560,7 @@ void ShapeAnalyzer::generate_connected_components_list_of_extended_refined_adjac
                     extended_nodes_to_connected_component.insert(std::pair<std::pair<int, int>, int>(v, component_id));
 
                     //now get all the adjacent nodes
-                    std::cout<<v.first<<" "<<v.second<<std::endl;
+                    //std::cout<<v.first<<" "<<v.second<<std::endl;
                     //check if this node has anything adjacent first of all!
                     if(extended_refined_adjacency.count(v)>0){
                         std::multimap<std::pair<int, int>, std::pair<int, int>>::iterator adjacent_itr=extended_refined_adjacency.equal_range(v).first;
@@ -1776,13 +1835,11 @@ void ShapeAnalyzer::compute_extended_path(int finger_id){
     std::vector<std::pair<int, int>> path_extended;
     std::vector<int> path;
     if(finger_id==1){
-        std::cout<<"slave angles A: "<<int_angles.second.first<<" "<<int_angles.second.second<<std::endl;
         std::pair<int, int> opposite_component_init(initial_centroid_idx_2, node_angle_to_angle_component.at(std::pair<int, int>(initial_centroid_idx_2, int_angles.second.first)));
         std::pair<int, int> opposite_component_end(desired_centroid_idx_2, node_angle_to_angle_component.at(std::pair<int, int>(desired_centroid_idx_2, int_angles.second.second)));
         S_solution=get_extended_path(extended_refined_adjacency, initial_centroid_idx_1, desired_centroid_idx_1, grasp_line, opposite_component_init, opposite_component_end, int_angles.first.first, int_angles.first.second);
     }
     else{
-        std::cout<<"slave angles B: "<<int_angles.second.first<<" "<<int_angles.second.second<<std::endl;
         std::pair<int, int> opposite_component_init(initial_centroid_idx_1, node_angle_to_angle_component.at(std::pair<int, int>(initial_centroid_idx_1, int_angles.second.first)));
         std::pair<int, int> opposite_component_end(desired_centroid_idx_1, node_angle_to_angle_component.at(std::pair<int, int>(desired_centroid_idx_1, int_angles.second.second)));
         S_solution=get_extended_path(extended_refined_adjacency, initial_centroid_idx_2, desired_centroid_idx_2, -grasp_line, opposite_component_init, opposite_component_end, int_angles.first.first, int_angles.first.second);
@@ -1808,8 +1865,8 @@ void ShapeAnalyzer::compute_extended_path(int finger_id){
     S_extended.pop();
     path.push_back(idx);
     path_extended.push_back(idx_extended);
-    std::cout<<"node: "<<idx<<std::endl;
-    std::cout<<"node: "<<idx_extended.first<<" "<<idx_extended.second<<std::endl;
+    //std::cout<<"node: "<<idx<<std::endl;
+    //std::cout<<"node: "<<idx_extended.first<<" "<<idx_extended.second<<std::endl;
     point1=supervoxel_clusters.at(idx)->centroid_;
 
     //variables to store the translation sequence
@@ -1831,8 +1888,8 @@ void ShapeAnalyzer::compute_extended_path(int finger_id){
         S_extended.pop();
         path.push_back(idx);
         path_extended.push_back(idx_extended);
-        std::cout<<"node: "<<idx<<std::endl;
-        std::cout<<"node: "<<idx_extended.first<<" "<<idx_extended.second<<std::endl;
+        //std::cout<<"node: "<<idx<<std::endl;
+        //std::cout<<"node: "<<idx_extended.first<<" "<<idx_extended.second<<std::endl;
         //std::cout<<"idx"<<idx<<std::endl;
         point2=supervoxel_clusters.at(idx)->centroid_;
         //store this in the translation sequence
@@ -1856,9 +1913,7 @@ void ShapeAnalyzer::compute_extended_path(int finger_id){
     //std::cout<<"BBBBBBB"<<std::endl;
     compute_extended_angle_sequence(path_extended, finger_id, int_angles.first.first, int_angles.first.second); 
     //compute distance sequence
-    std::cout<<"CCCCCCC"<<std::endl;
     compute_contact_distances(path);
-    std::cout<<"DDDDDD"<<std::endl;
 }
 
 std::pair<std::pair<int, int>, std::pair<int, int>> ShapeAnalyzer::get_int_angles(int finger_id){
@@ -2087,9 +2142,7 @@ std::pair<std::pair<int, int>, std::pair<int, int>> ShapeAnalyzer::get_int_angle
 
 void ShapeAnalyzer::compute_extended_angle_sequence(std::vector<std::pair<int, int>> path, int finger_id, int init_angle, int desired_angle){
     int index=path.size()-1;
-    std::cout<<"EEEEEEEEE"<<std::endl;
     std::set<int> current_node_angles=node_component_to_angles_subset.at(path[path.size()-1]);
-    std::cout<<"OK"<<std::endl;
     std::set<int> next_node_angles;
     angle_sequence=std::vector<double>();
     angle_sequence.resize(path.size());
@@ -2099,17 +2152,13 @@ void ShapeAnalyzer::compute_extended_angle_sequence(std::vector<std::pair<int, i
     //std::cout<<"Index: "<<index<<std::endl;
     while(index>=0){
         next_node_angles=current_node_angles;
-        std::cout<<"FFFFFFFF node: "<<path[index].first<<" "<<path[index].second<<std::endl;
         if(node_component_to_angles_subset.count(path[index])<1){
             std::cout<<"Error in getting angle subset"<<std::cout;
             return;
         }
         current_node_angles=node_component_to_angles_subset.at(path[index]);
-        std::cout<<"OK"<<std::endl;
-        std::cout<<"the sets are: "<<next_node_angles.size()<<" and "<<current_node_angles.size()<<std::endl;
         std::set<int> intersection;
         std::set_intersection(current_node_angles.begin(), current_node_angles.end(), next_node_angles.begin(), next_node_angles.end(), std::inserter(intersection, intersection.begin()));
-        std::cout<<"The error is not here"<<std::endl;
         //check if the current angle is in the intersection (i.e. the translation can be with the gripper at this angle) 
         if(intersection.find(current_angle)!=intersection.end()){
             angle_sequence[index]=double(current_angle)*M_PI/180.0;
@@ -2125,9 +2174,7 @@ void ShapeAnalyzer::compute_extended_angle_sequence(std::vector<std::pair<int, i
         }
         index=index-1;
         //std::cout<<"Index: "<<index<<std::endl;
-        std::cout<<"GGGGGGG"<<std::endl;
     }
-    std::cout<<"HHHHHHHHHHH"<<std::endl;
 
     //now change the list so that it becomes a list of deltas
     double old_angle=init_angle*M_PI/180; //this is the initial angle
