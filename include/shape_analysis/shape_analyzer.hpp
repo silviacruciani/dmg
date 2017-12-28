@@ -57,7 +57,7 @@ namespace shape_analysis{
             bool return_manipulation_sequence(); //create service file for this
             int connect_centroid_to_contact(geometry_msgs::Point p, geometry_msgs::Quaternion q, std::string id, bool render_sphere);
             std::stack<int> get_path(std::multimap<uint32_t,uint32_t> graph, int init, int end, Eigen::Vector3f grasp_line, int opposite_component);
-            std::pair<std::stack<std::pair<int, int>>, std::stack<int>> get_extended_path(std::multimap<std::pair<int, int>, std::pair<int, int>> graph, int init, int end, Eigen::Vector3f grasp_line, std::pair<int, int> opposite_component, int initial_angle, int desired_angle);
+            std::pair<std::stack<std::pair<int, int>>, std::stack<int>> get_extended_path(std::multimap<std::pair<int, int>, std::pair<int, int>> graph, int init, int end, Eigen::Vector3f grasp_line, std::pair<int, int> opposite_component_init, std::pair<int, int> opposite_component_end, int initial_angle, int desired_angle);
             void compute_angle_sequence(std::vector<int> path, int finger_id);
             void compute_extended_angle_sequence(std::vector<std::pair<int, int>> path, int finger_id, int init_angle, int desired_angle);
             void compute_contact_distances(std::vector<int> path);

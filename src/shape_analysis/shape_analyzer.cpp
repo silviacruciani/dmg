@@ -245,6 +245,8 @@ int ShapeAnalyzer::connect_centroid_to_contact(geometry_msgs::Point p, geometry_
     input.y=p.y*1000.0;
     input.z=p.z*1000.0;
 
+    std::cout<<"connecting contact point: "<<id<<std::endl;
+
     //draw a sphere at the contact point
     //viewer->addSphere (input, 3, 1.0, 0.0, 0.0, "contact point");
     
@@ -270,6 +272,7 @@ int ShapeAnalyzer::connect_centroid_to_contact(geometry_msgs::Point p, geometry_
         
         }
         if(render_sphere){
+            std::cout<<"Rendering: "<<id<<std::endl;
             viewer->removeShape(id);
             viewer->addSphere(all_centroids_cloud->points[pointIdxNKNSearch[min_dist_idx]], 1, 0.0, 0.0, 1.0, id);
         }
@@ -287,18 +290,23 @@ int ShapeAnalyzer::connect_centroid_to_contact(geometry_msgs::Point p, geometry_
 }
 
 void ShapeAnalyzer::set_initial_contact(geometry_msgs::Point p, geometry_msgs::Quaternion q, int finger_id){
+    std::cout<<"set initial contact: "<<finger_id<<std::endl;
     pcl::PointXYZRGBA input;
     input.x=p.x*1000.0;
     input.y=p.y*1000.0;
     input.z=p.z*1000.0;
     //later quaternion
 
+    std::cout<<"XXXXXX "<<finger_id<<std::endl;
+
     if(finger_id==1){
         initial_centroid_idx_1=connect_centroid_to_contact(p, q, "initial centroid "+std::to_string(finger_id), true);
+        std::cout<<"YYYYYY "<<std::endl;
         initial_pose_1<<p.x, p.y, p.z, q.x, q.y, q.z, q.w;
     }
     else{
         initial_centroid_idx_2=connect_centroid_to_contact(p, q, "initial centroid "+std::to_string(finger_id), true);
+        std::cout<<"YYYYYY "<<std::endl;
         initial_pose_2<<p.x, p.y, p.z, q.x, q.y, q.z, q.w;
     }
     viewer->removeShape("initial contact "+std::to_string(finger_id));
@@ -1514,7 +1522,7 @@ void ShapeAnalyzer::generate_connected_components_list_of_extended_refined_adjac
     std::cout<<"Found EXTENDED connected components: "<<component_id+1<<std::endl;
 }
 
-std::pair<std::stack<std::pair<int, int>>, std::stack<int>> ShapeAnalyzer::get_extended_path(std::multimap<std::pair<int, int>, std::pair<int, int>> graph, int init, int end, Eigen::Vector3f grasp_line, std::pair<int, int> opposite_component, int initial_angle, int desired_angle){
+std::pair<std::stack<std::pair<int, int>>, std::stack<int>> ShapeAnalyzer::get_extended_path(std::multimap<std::pair<int, int>, std::pair<int, int>> graph, int init, int end, Eigen::Vector3f grasp_line, std::pair<int, int> opposite_component_init, std::pair<int, int> opposite_component_end, int initial_angle, int desired_angle){
     std::cout<<"computing (e)path from: "<<init<<" to "<<end<<std::endl;
     std::pair<std::stack<std::pair<int, int>>, std::stack<int>> empty;
 
@@ -1526,42 +1534,52 @@ std::pair<std::stack<std::pair<int, int>>, std::stack<int>> ShapeAnalyzer::get_e
         std::cout<<"invalid value in node: "<<end<<" of angle"<<desired_angle<<std::endl;
         return empty;
     }
+    if(node_angle_to_angle_component.count(opposite_component_init)<1){
+        std::cout<<"invalid value in node: "<<opposite_component_init.first<<" of angle"<<opposite_component_init.second<<std::endl;
+        return empty;
+    }
+    if(node_angle_to_angle_component.count(opposite_component_end)<1){
+        std::cout<<"invalid value in node: "<<opposite_component_end.first<<" of angle"<<opposite_component_end.second<<std::endl;
+        return empty;
+    }
 
     int initial_angle_component=node_angle_to_angle_component.at(std::pair<int, int>(init, initial_angle));
     int desired_angle_component=node_angle_to_angle_component.at(std::pair<int, int>(end, desired_angle));
     std::pair<int, int> init_node(init, initial_angle_component);
     std::pair<int, int> goal_node(end, desired_angle_component);
 
+    int slave_initial_angle_component=node_angle_to_angle_component.at(opposite_component_init);
+    int slave_desired_angle_component=node_angle_to_angle_component.at(opposite_component_end);
+    std::pair<int, int> slave_init_node(opposite_component_init.first, initial_angle_component);
+    std::pair<int, int> slave_goal_node(opposite_component_end.first, desired_angle_component);
+
     if(extended_nodes_to_connected_component.count(goal_node)<1){
         std::cout<<"invalid value of node: "<<goal_node.first<<" "<<goal_node.second<<std::endl;
         return empty;
     }
     //check if a path exists. i.e. the elements are in the connencted component:
-    if(extended_nodes_to_connected_component.at(init_node)!=extended_nodes_to_connected_component.at(goal_node)){
+    if(extended_nodes_to_connected_component.at(init_node)!=extended_nodes_to_connected_component.at(goal_node)||
+        extended_nodes_to_connected_component.at(slave_init_node)!=extended_nodes_to_connected_component.at(slave_goal_node)){
         std::cout<<"The nodes are not connected. Regrasping is needed."<<std::endl;
         
         return empty;
     }
 
-    //check goal and start of the opposite finger too:
-    if(extended_nodes_to_connected_component.at(slave_init_node)!=extended_nodes_to_connected_component.at(slave_goal_node)){
-        std::cout<<"The nodes are not connected. Regrasping is needed."<<std::endl;
-        
-        return empty;
-    }
+    
+    
 
     //if the nodes are connected, it is possible to find a path! (Always)
 
     //check the normal to the opposite_component
-    Eigen::Vector3f plane_normal=component_to_average_normal.at(nodes_to_connected_component.at(opposite_component.first));
+    Eigen::Vector3f plane_normal=component_to_average_normal.at(nodes_to_connected_component.at(opposite_component_init.first));
     Eigen::Vector3f l0, p0;
     l0<<all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(uint32_t(init))).x, 
         all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(uint32_t(init))).y, 
         all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(uint32_t(init))).z;
 
-    p0<<all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(uint32_t(opposite_component.first))).x, 
-        all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(uint32_t(opposite_component.first))).y, 
-        all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(uint32_t(opposite_component.first))).z;
+    p0<<all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(uint32_t(opposite_component_init.first))).x, 
+        all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(uint32_t(opposite_component_init.first))).y, 
+        all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(uint32_t(opposite_component_init.first))).z;
 
     //insert the first distance
     double distance_between_contacts=(p0-l0).norm();
@@ -1664,7 +1682,7 @@ std::pair<std::stack<std::pair<int, int>>, std::stack<int>> ShapeAnalyzer::get_e
                                 //std::cout<<"FFFFFFF2: "<<extended_nodes_to_connected_component.at(opposite_component)<<std::endl;
                                 //if a node is not in this map, it means it is very disconnected
                                 if(extended_nodes_to_connected_component.count(checking_node)>0){         
-                                    if(extended_nodes_to_connected_component.at(checking_node)==extended_nodes_to_connected_component.at(opposite_component)){
+                                    if(extended_nodes_to_connected_component.at(checking_node)==extended_nodes_to_connected_component.at(opposite_component_init)){
                                         slave_dist=0;
                                         //std::cout<<"The slave contact is in the connected component."<<std::endl;
                                         not_equal=false;
@@ -1771,12 +1789,14 @@ void ShapeAnalyzer::compute_extended_path(int finger_id){
     std::vector<std::pair<int, int>> path_extended;
     std::vector<int> path;
     if(finger_id==1){
-        std::pair<int, int> opposite_component(initial_centroid_idx_2, node_angle_to_angle_component.at(std::pair<int, int>(initial_centroid_idx_2, int_angles.second.first)));
-        S_solution=get_extended_path(extended_refined_adjacency, initial_centroid_idx_1, desired_centroid_idx_1, grasp_line, opposite_component, int_angles.first.first, int_angles.first.second);
+        std::pair<int, int> opposite_component_init(initial_centroid_idx_2, node_angle_to_angle_component.at(std::pair<int, int>(initial_centroid_idx_2, int_angles.second.first)));
+        std::pair<int, int> opposite_component_end(desired_centroid_idx_2, node_angle_to_angle_component.at(std::pair<int, int>(desired_centroid_idx_2, int_angles.second.second)));
+        S_solution=get_extended_path(extended_refined_adjacency, initial_centroid_idx_1, desired_centroid_idx_1, grasp_line, opposite_component_init, opposite_component_end, int_angles.first.first, int_angles.first.second);
     }
     else{
-        std::pair<int, int> opposite_component(initial_centroid_idx_1, node_angle_to_angle_component.at(std::pair<int, int>(initial_centroid_idx_1, int_angles.second.first)));
-        S_solution=get_extended_path(extended_refined_adjacency, initial_centroid_idx_2, desired_centroid_idx_2, -grasp_line, opposite_component, int_angles.first.first, int_angles.first.second);
+        std::pair<int, int> opposite_component_init(initial_centroid_idx_1, node_angle_to_angle_component.at(std::pair<int, int>(initial_centroid_idx_1, int_angles.second.first)));
+        std::pair<int, int> opposite_component_end(desired_centroid_idx_1, node_angle_to_angle_component.at(std::pair<int, int>(desired_centroid_idx_1, int_angles.second.second)));
+        S_solution=get_extended_path(extended_refined_adjacency, initial_centroid_idx_2, desired_centroid_idx_2, -grasp_line, opposite_component_init, opposite_component_end, int_angles.first.first, int_angles.first.second);
     }
 
     S_extended=S_solution.first;
