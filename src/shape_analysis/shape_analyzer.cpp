@@ -1647,17 +1647,20 @@ std::pair<std::stack<std::pair<int, int>>, std::stack<int>> ShapeAnalyzer::get_e
         //get all the angle components too
         for(int ii=0; ii<angle_components.size(); ii++){
             Q.insert(count);
-            node_to_int_idx.insert(std::pair<std::pair<int, int>, int>(std::pair<int, int>(int(i), ii), count));
-            int_idx_to_node.insert(std::pair<int, std::pair<int, int>>(count, std::pair<int, int>(int(i), ii)));
+            //std::cout<<"inserting: "<<i<<" "<<ii<<std::endl;
+            node_to_int_idx.insert(std::pair<std::pair<int, int>, int>(std::pair<int, int>(node_id, ii), count));
+            int_idx_to_node.insert(std::pair<int, std::pair<int, int>>(count, std::pair<int, int>(node_id, ii)));
             dist.push_back(DBL_MAX);
             dist_faked.push_back(DBL_MAX);
             prev.push_back(-1);
             count++;
         }
     }
-    dist[init]=0;
-    dist_faked[init]=0;
 
+    dist[node_to_int_idx.at(init_node)]=0;
+    dist_faked[node_to_int_idx.at(init_node)]=0;
+
+    std::cout<<std::endl<<"---------------------------------------------"<<std::endl;
     std::cout<<"data structures initialized for graph search."<<std::endl;
 
     int u;
@@ -1666,7 +1669,7 @@ std::pair<std::stack<std::pair<int, int>>, std::stack<int>> ShapeAnalyzer::get_e
     std::stack<std::pair<int, int>> S_node;
     //iterate over the vertices
     while(Q.size()>0){
-        //std::cout<<"AAAAAA"<<std::endl;
+        std::cout<<"=========================================================================== size: "<<Q.size()<<std::endl;
         //get element with minimum distance
         std::vector<double>::iterator it=std::min_element(std::begin(dist_faked), std::end(dist_faked)); 
         u=std::distance(std::begin(dist_faked), it);
@@ -1678,89 +1681,93 @@ std::pair<std::stack<std::pair<int, int>>, std::stack<int>> ShapeAnalyzer::get_e
         //check if the element found is the goal
 
         if(u_node!=goal_node){
-            //loop over all the neighbours of u
-            std::multimap<std::pair<int, int>, std::pair<int, int>>::iterator adjacent_itr=graph.equal_range(u_node).first;
-            for ( ; adjacent_itr!=graph.equal_range(u_node).second; adjacent_itr++){
-                //if this element is still in Q
-                int element=node_to_int_idx.at(adjacent_itr->second);
-                //std::cout<<"current adjacent element "<<adjacent_itr->second<<std::endl;
-                if(Q.find(element)!=Q.end()){
-                    //compute the intersection between the opposite plane and the grasp line(assumed constant!)
-                    //l0 is the current considered point
-                    //std::cout<<"BBBBBB"<<std::endl;
-                    l0<<all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(adjacent_itr->second.first)).x, 
-                        all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(adjacent_itr->second.first)).y, 
-                        all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(adjacent_itr->second.first)).z;
-                    double alpha=-(l0-p0).dot(plane_normal)/(grasp_line.dot(plane_normal));
-                    Eigen::Vector3f intersection_point=alpha*grasp_line+l0;
-                    //std::cout<<"CCCCCC"<<std::endl;    
-                    //now find the nearest centroid to this point, and check if it belongs to the same connected component(be sure to check that this node IS associaded to a component first)
-                    int K = 3;//three nearest neighbours
-                    std::vector<int> pointIdxNKNSearch(K);
-                    std::vector<float> pointNKNSquaredDistance(K);
-                    //improve this distance according to the change in normal (TO DO)
-                    double slave_dist=100;
-                    pcl::PointXYZRGBA input;
-                    input.x=intersection_point(0);
-                    input.y=intersection_point(1);
-                    input.z=intersection_point(2);
+            //loop over all the neighbours of u (if u is in the adjacency map)
+            if(graph.count(u_node)>0){
+                std::multimap<std::pair<int, int>, std::pair<int, int>>::iterator adjacent_itr=graph.equal_range(u_node).first;
+                for ( ; adjacent_itr!=graph.equal_range(u_node).second; adjacent_itr++){
+                    //if this element is still in Q
+                    //std::cout<<"current adjacent element "<<adjacent_itr->second.first<<" "<<adjacent_itr->second.second<<std::endl;
+                    int element=node_to_int_idx.at(adjacent_itr->second);
+                    //std::cout<<"OK 0"<<std::endl;
+                    if(Q.find(element)!=Q.end()){
+                        //compute the intersection between the opposite plane and the grasp line(assumed constant!)
+                        //l0 is the current considered point
+                        //std::cout<<"BBBBBB"<<std::endl;
+                        l0<<all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(adjacent_itr->second.first)).x, 
+                            all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(adjacent_itr->second.first)).y, 
+                            all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(adjacent_itr->second.first)).z;
+                        double alpha=-(l0-p0).dot(plane_normal)/(grasp_line.dot(plane_normal));
+                        Eigen::Vector3f intersection_point=alpha*grasp_line+l0;
+                        //std::cout<<"CCCCCC"<<std::endl;    
+                        //now find the nearest centroid to this point, and check if it belongs to the same connected component(be sure to check that this node IS associaded to a component first)
+                        int K = 3;//three nearest neighbours
+                        std::vector<int> pointIdxNKNSearch(K);
+                        std::vector<float> pointNKNSquaredDistance(K);
+                        //improve this distance according to the change in normal (TO DO)
+                        double slave_dist=100;
+                        pcl::PointXYZRGBA input;
+                        input.x=intersection_point(0);
+                        input.y=intersection_point(1);
+                        input.z=intersection_point(2);
 
-                    //now add the distance between the current contact point and the obtained component to the map between distances and nodes (along the normal)
-                    distance_between_contacts=(l0-intersection_point).norm();
-                    extended_node_to_slave_distance.insert(std::pair<std::pair<int, int>, double>(adjacent_itr->second, distance_between_contacts));
-                    node_to_slave_distance.insert(std::pair<uint32_t, double>(uint32_t(adjacent_itr->second.first), distance_between_contacts));
+                        //now add the distance between the current contact point and the obtained component to the map between distances and nodes (along the normal)
+                        distance_between_contacts=(l0-intersection_point).norm();
+                        extended_node_to_slave_distance.insert(std::pair<std::pair<int, int>, double>(adjacent_itr->second, distance_between_contacts));
+                        node_to_slave_distance.insert(std::pair<uint32_t, double>(uint32_t(adjacent_itr->second.first), distance_between_contacts));
 
-                    //std::cout<<"Checking the opposite component."<<std::endl;
+                        //std::cout<<"Checking the opposite component."<<std::endl;
 
-                    if (centroids_kdtree.nearestKSearch(input, K, pointIdxNKNSearch, pointNKNSquaredDistance)> 0){
-                        bool not_equal=true;
-                        for (size_t i = 0; i < pointIdxNKNSearch.size () && not_equal; ++i){
-                            //search for one component in the default connected component
-                            //std::cout<<"DDDDDD"<<std::endl;    
-                            std::vector<int> all_possible_angle_components=node_to_angle_components.at(pc_to_supervoxel_idx.at(pointIdxNKNSearch[i]));
-                            //std::cout<<"OK"<<std::endl;    
-                            for(int jj=0; jj<all_possible_angle_components.size(); jj++){
-                                //std::cout<<"EEEEEE"<<std::endl;    
-                                std::pair<int, int> checking_node(int(pc_to_supervoxel_idx.at(pointIdxNKNSearch[i])), all_possible_angle_components[jj]);
-                                //std::cout<<"OK"<<std::endl;
-                                //std::cout<<"node: "<<int(pc_to_supervoxel_idx.at(pointIdxNKNSearch[i]))<<" "<<all_possible_angle_components[jj]<<std::endl;
-                                //std::cout<<"FFFFFFF1: "<<extended_nodes_to_connected_component.at(checking_node)<<std::endl;
-                                //std::cout<<"FFFFFFF2: "<<extended_nodes_to_connected_component.at(opposite_component)<<std::endl;
-                                //if a node is not in this map, it means it is very disconnected
-                                if(extended_nodes_to_connected_component.count(checking_node)>0){         
-                                    if(extended_nodes_to_connected_component.at(checking_node)==extended_nodes_to_connected_component.at(opposite_component_init)){
-                                        slave_dist=0;
-                                        //std::cout<<"The slave contact is in the connected component."<<std::endl;
-                                        not_equal=false;
-                                        break;
+                        if (centroids_kdtree.nearestKSearch(input, K, pointIdxNKNSearch, pointNKNSquaredDistance)> 0){
+                            bool not_equal=true;
+                            for (size_t i = 0; i < pointIdxNKNSearch.size () && not_equal; ++i){
+                                //search for one component in the default connected component
+                                //std::cout<<"DDDDDD"<<std::endl;    
+                                std::vector<int> all_possible_angle_components=node_to_angle_components.at(pc_to_supervoxel_idx.at(pointIdxNKNSearch[i]));
+                                //std::cout<<"OK"<<std::endl;    
+                                for(int jj=0; jj<all_possible_angle_components.size(); jj++){
+                                    //std::cout<<"EEEEEE"<<std::endl;    
+                                    std::pair<int, int> checking_node(int(pc_to_supervoxel_idx.at(pointIdxNKNSearch[i])), all_possible_angle_components[jj]);
+                                    //std::cout<<"OK"<<std::endl;
+                                    //std::cout<<"node: "<<int(pc_to_supervoxel_idx.at(pointIdxNKNSearch[i]))<<" "<<all_possible_angle_components[jj]<<std::endl;
+                                    //std::cout<<"FFFFFFF1: "<<extended_nodes_to_connected_component.at(checking_node)<<std::endl;
+                                    //std::cout<<"FFFFFFF2: "<<extended_nodes_to_connected_component.at(opposite_component_init)<<std::endl;
+                                    //if a node is not in this map, it means it is very disconnected
+                                    if(extended_nodes_to_connected_component.count(checking_node)>0){         
+                                        if(extended_nodes_to_connected_component.at(checking_node)==extended_nodes_to_connected_component.at(opposite_component_init)){
+                                            slave_dist=0;
+                                            //std::cout<<"The slave contact is in the connected component."<<std::endl;
+                                            not_equal=false;
+                                            break;
+                                        }
                                     }
+                                    //std::cout<<"OK1"<<std::endl;
                                 }
-                                //std::cout<<"OK"<<std::endl;
+
                             }
-
+                            //std::cout<<"OK2"<<std::endl;
                         }
-                    }
-                    else{
-                        //there is something very wrong
-                        std::cout<<"ERROR: cold not associate slave contact to centroid"<<std::endl;
-                    }
+                        else{
+                            //there is something very wrong
+                            std::cout<<"ERROR: cold not associate slave contact to centroid"<<std::endl;
+                        }
 
-                    //compute the real distance between the nodes now
-                    Eigen::Vector3f source_point;
-                    source_point<<all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(adjacent_itr->first.first)).x, 
-                        all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(adjacent_itr->first.first)).y, 
-                        all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(adjacent_itr->first.first)).z;
+                        //compute the real distance between the nodes now
+                        Eigen::Vector3f source_point;
+                        source_point<<all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(adjacent_itr->first.first)).x, 
+                            all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(adjacent_itr->first.first)).y, 
+                            all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(adjacent_itr->first.first)).z;
 
-                    double node_dist=(l0-source_point).norm();
+                        double node_dist=(l0-source_point).norm();
 
-                    //the distance can be modified by the opposite finger if it is not in the same connected component
-                    double alt=dist[u]+node_dist+slave_dist;
-                    int dist_idx=node_to_int_idx.at(adjacent_itr->second);
-                    if(alt<dist[dist_idx]){
-                        //a new shortest path has been found
-                        dist[dist_idx]=alt;
-                        dist_faked[dist_idx]=alt;
-                        prev[dist_idx]=u;
+                        //the distance can be modified by the opposite finger if it is not in the same connected component
+                        double alt=dist[u]+node_dist+slave_dist;
+                        int dist_idx=node_to_int_idx.at(adjacent_itr->second);
+                        if(alt<dist[dist_idx]){
+                            //a new shortest path has been found
+                            dist[dist_idx]=alt;
+                            dist_faked[dist_idx]=alt;
+                            prev[dist_idx]=u;
+                        }
                     }
                 }
             }
@@ -2141,24 +2148,25 @@ std::pair<std::pair<int, int>, std::pair<int, int>> ShapeAnalyzer::get_int_angle
 } 
 
 void ShapeAnalyzer::compute_extended_angle_sequence(std::vector<std::pair<int, int>> path, int finger_id, int init_angle, int desired_angle){
-    int index=path.size()-1;
-    std::set<int> current_node_angles=node_component_to_angles_subset.at(path[path.size()-1]);
-    std::set<int> next_node_angles;
+    int index=0;
+    std::set<int> current_node_angles=node_component_to_angles_subset.at(path[index]);
+    std::set<int> prev_node_angles;
     angle_sequence=std::vector<double>();
     angle_sequence.resize(path.size());
-    angle_sequence[index]=double(desired_angle)*M_PI/180.0;
-    index=index-1;
-    int current_angle=desired_angle;
+    //angle_sequence[path.size()-1]=double(desired_angle)*M_PI/180.0;
+    angle_sequence[index]=double(init_angle)*M_PI/180.0;
+    index=index+1;
+    int current_angle=init_angle;
     //std::cout<<"Index: "<<index<<std::endl;
-    while(index>=0){
-        next_node_angles=current_node_angles;
+    while(index<path.size()){
+        prev_node_angles=current_node_angles;
         if(node_component_to_angles_subset.count(path[index])<1){
             std::cout<<"Error in getting angle subset"<<std::endl;
             return;
         }
         current_node_angles=node_component_to_angles_subset.at(path[index]);
         std::set<int> intersection;
-        std::set_intersection(current_node_angles.begin(), current_node_angles.end(), next_node_angles.begin(), next_node_angles.end(), std::inserter(intersection, intersection.begin()));
+        std::set_intersection(current_node_angles.begin(), current_node_angles.end(), prev_node_angles.begin(), prev_node_angles.end(), std::inserter(intersection, intersection.begin()));
         //check if the current angle is in the intersection (i.e. the translation can be with the gripper at this angle) 
         if(intersection.find(current_angle)!=intersection.end()){
             angle_sequence[index]=double(current_angle)*M_PI/180.0;
@@ -2172,14 +2180,14 @@ void ShapeAnalyzer::compute_extended_angle_sequence(std::vector<std::pair<int, i
             current_angle=*intersection.begin();
             angle_sequence[index]=double(current_angle)*M_PI/180.0;
         }
-        index=index-1;
+        index=index+1;
         //std::cout<<"Index: "<<index<<std::endl;
     }
 
     //now change the list so that it becomes a list of deltas
-    double old_angle=init_angle*M_PI/180; //this is the initial angle
-    for(int i=0; i<angle_sequence.size(); i++){
-        angle_sequence[i]=angle_sequence[i]-old_angle;
-        old_angle=old_angle+angle_sequence[i];//uptade to the next angle
+    double last_angle=desired_angle*M_PI/180.0; //this is the last angle
+    for(int i=angle_sequence.size()-1 ; i>=0; i--){
+        angle_sequence[i]=last_angle-angle_sequence[i];
+        last_angle=last_angle-angle_sequence[i];//uptade to the next angle
     }
 }
