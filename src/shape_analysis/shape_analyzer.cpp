@@ -2153,7 +2153,7 @@ void ShapeAnalyzer::compute_extended_angle_sequence(std::vector<std::pair<int, i
     while(index>=0){
         next_node_angles=current_node_angles;
         if(node_component_to_angles_subset.count(path[index])<1){
-            std::cout<<"Error in getting angle subset"<<std::cout;
+            std::cout<<"Error in getting angle subset"<<std::endl;
             return;
         }
         current_node_angles=node_component_to_angles_subset.at(path[index]);
