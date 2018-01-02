@@ -33,7 +33,7 @@ def call_server(server_name, pose1, pose2, pose1d, pose2d):
     #check the response to see if the solution is valid or not
     if resp.translations is None:
         return 0
-    elif len(translations) < 1 or len(rotations) < 1:
+    elif len(resp.translations) < 1 or len(resp.rotations) < 1:
         return 0
     elif (len(resp.translations)< 2) and abs(resp.rotations[0]) < 0.1 :   
         return 0
@@ -111,12 +111,12 @@ def main():
     min_z2 = min_z + delta
     max_z2 = max_z - delta
 
-    #now generate many different poses by changing x y z inside the bounding box and roll pitch yaw between 0 and 180
+    #now generate many different poses by changing x y z inside the bounding box and roll pitch yaw between 0 and 360
     x_changes = 5
     y_changes = 5
     z_changes = 5
     angle_changes = 18 #degrees
-    max_angle = 180.0
+    max_angle = 360.0
 
     #initialize the manipulability matrix
     matrix_size = y_changes*z_changes*angle_changes + x_changes*y_changes*angle_changes + z_changes*x_changes*angle_changes
@@ -131,7 +131,7 @@ def main():
     angle_step = max_angle/angle_changes
 
     #all this changes do not include the final limit, but maybe it is enough for statistics
-    #variations on x:
+    #variations on x (working, verified):
     for y in np.arange(min_y2, max_y2, y_step):
         for z in np.arange (min_z2, max_z2, z_step):
             for angle in np.arange(0, max_angle, angle_step):
@@ -140,21 +140,21 @@ def main():
                 poses[idx] = fing_poses
                 idx = idx + 1
 
-    #variations on y:
+    #variations on y (working, verified):
     for x in np.arange(min_x2, max_x2, x_step):
         for z in np.arange (min_z2, max_z2, z_step):
-            for angle in np.arange(0, 180, angle_step):
+            for angle in np.arange(0, max_angle, angle_step):
                 #insert the pose in the dictionary
-                fing_poses = computeFingersPoses(x, x, min_y, max_y, z, z, math.pi/2.0, 0, angle*math.pi/180.0)
+                fing_poses = computeFingersPoses(x, x, min_y, max_y, z, z, math.pi/2.0, angle*math.pi/180.0, 0)
                 poses[idx] = fing_poses
                 idx = idx + 1
 
-    #variations on z:
+    #variations on z (working, verified):
     for x in np.arange(min_x2, max_x2, x_step):
         for y in np.arange (min_y2, max_y2, y_step):
-            for angle in np.arange(0, 180, angle_step):
+            for angle in np.arange(0, max_angle, angle_step):
                 #insert the pose in the dictionary
-                poses[idx] = computeFingersPoses(x, x, y, y, min_z, max_z, angle*math.pi/180.0, math.pi/2.0, 0)
+                poses[idx] = computeFingersPoses(x, x, y, y, min_z, max_z, math.pi/2.0, 0, angle*math.pi/180.0)
                 idx = idx + 1
 
     print "idx final: " + str(idx)
