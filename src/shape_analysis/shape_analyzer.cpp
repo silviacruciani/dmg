@@ -2147,6 +2147,8 @@ std::pair<std::pair<int, int>, std::pair<int, int>> ShapeAnalyzer::get_int_angle
 void ShapeAnalyzer::compute_extended_angle_sequence(std::vector<std::pair<int, int>> path, int finger_id, int init_angle, int desired_angle){
     int index=0;
     std::set<int> current_node_angles=node_component_to_angles_subset.at(path[index]);
+    std::cout<<"Initial index: "<<index<<std::endl;
+    std::cout<<"size: "<<current_node_angles.size()<<std::endl;
     std::set<int> prev_node_angles;
     angle_sequence=std::vector<double>();
     angle_sequence.resize(path.size());
@@ -2161,7 +2163,9 @@ void ShapeAnalyzer::compute_extended_angle_sequence(std::vector<std::pair<int, i
             std::cout<<"Error in getting angle subset"<<std::endl;
             return;
         }
+        std::cout<<"Index: "<<index<<std::endl;
         current_node_angles=node_component_to_angles_subset.at(path[index]);
+        std::cout<<"size: "<<current_node_angles.size()<<std::endl;
         std::set<int> intersection;
         std::set_intersection(current_node_angles.begin(), current_node_angles.end(), prev_node_angles.begin(), prev_node_angles.end(), std::inserter(intersection, intersection.begin()));
         //check if the current angle is in the intersection (i.e. the translation can be with the gripper at this angle) 
@@ -2171,10 +2175,11 @@ void ShapeAnalyzer::compute_extended_angle_sequence(std::vector<std::pair<int, i
         else{
             if(intersection.size()==0){
                 std::cout<<"error"<<std::endl;
-                std::cout<<"The intersection is empty! The adjacency is wrong."<<std::endl;
+                std::cout<<"The intersection is empty! The adjacency is wrong. Index: "<<index<<std::endl;
             }
-            //in this case the element is random. Choose one that is closer to the one we already have
-            current_angle=*intersection.begin();
+            else{//in this case the element is random. Choose one that is closer to the one we already have
+                current_angle=*intersection.begin();
+            }
             angle_sequence[index]=double(current_angle)*M_PI/180.0;
         }
         index=index+1;
