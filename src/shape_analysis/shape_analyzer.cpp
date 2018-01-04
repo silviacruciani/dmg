@@ -245,7 +245,7 @@ int ShapeAnalyzer::connect_centroid_to_contact(geometry_msgs::Point p, geometry_
     input.y=p.y*1000.0;
     input.z=p.z*1000.0;
 
-    std::cout<<"connecting contact point: "<<id<<std::endl;
+    //std::cout<<"connecting contact point: "<<id<<std::endl;
 
     //draw a sphere at the contact point
     //viewer->addSphere (input, 3, 1.0, 0.0, 0.0, "contact point");
@@ -272,7 +272,7 @@ int ShapeAnalyzer::connect_centroid_to_contact(geometry_msgs::Point p, geometry_
         
         }
         if(render_sphere){
-            std::cout<<"Rendering: "<<id<<std::endl;
+            //std::cout<<"Rendering: "<<id<<std::endl;
             viewer->removeShape(id);
             viewer->addSphere(all_centroids_cloud->points[pointIdxNKNSearch[min_dist_idx]], 1, 0.0, 0.0, 1.0, id);
         }
@@ -297,16 +297,13 @@ void ShapeAnalyzer::set_initial_contact(geometry_msgs::Point p, geometry_msgs::Q
     input.z=p.z*1000.0;
     //later quaternion
 
-    std::cout<<"XXXXXX "<<finger_id<<std::endl;
 
     if(finger_id==1){
         initial_centroid_idx_1=connect_centroid_to_contact(p, q, "initial centroid "+std::to_string(finger_id), true);
-        std::cout<<"YYYYYY "<<std::endl;
         initial_pose_1<<p.x, p.y, p.z, q.x, q.y, q.z, q.w;
     }
     else{
         initial_centroid_idx_2=connect_centroid_to_contact(p, q, "initial centroid "+std::to_string(finger_id), true);
-        std::cout<<"YYYYYY "<<std::endl;
         initial_pose_2<<p.x, p.y, p.z, q.x, q.y, q.z, q.w;
     }
     viewer->removeShape("initial contact "+std::to_string(finger_id));
@@ -386,7 +383,7 @@ std::stack<int> ShapeAnalyzer::get_path(std::multimap<uint32_t,uint32_t> graph, 
     dist[init]=0;
     dist_faked[init]=0;
 
-    std::cout<<"data structures initialized for graph search."<<std::endl;
+    //std::cout<<"data structures initialized for graph search."<<std::endl;
 
     int u;
     std::stack<int> S;
@@ -471,7 +468,7 @@ std::stack<int> ShapeAnalyzer::get_path(std::multimap<uint32_t,uint32_t> graph, 
             //std::cout<<"Found Path!"<<std::endl;
             //do something
             while(prev[u]!=all_centroids_cloud->points.size()+1){
-                std::cout<<"u: "<<u<<std::endl;
+                //std::cout<<"u: "<<u<<std::endl;
                 S.push(u);
                 u=prev[u];
             }
@@ -1415,15 +1412,15 @@ void ShapeAnalyzer::compute_angle_sequence(std::vector<int> path, int finger_id)
 void ShapeAnalyzer::compute_contact_distances(std::vector<int> path){
     //delete the old distance if any
     distance_variations.clear();
-    std::cout<<"node: "<<path[0]<<std::endl;
+    //std::cout<<"node: "<<path[0]<<std::endl;
     double previous_distance=node_to_slave_distance.at(uint32_t(path[0]))/1000.0; //convert into meters from mm
-    std::cout<<"OK"<<std::endl;
+    //std::cout<<"OK"<<std::endl;
     double current_distance;
     //loop through the path and create the sequence of distance variations
     for(int i=1; i<path.size(); i++){
-        std::cout<<"node: "<<path[i]<<std::endl;
+        //std::cout<<"node: "<<path[i]<<std::endl;
         current_distance=node_to_slave_distance.at(uint32_t(path[i]))/1000.0;
-        std::cout<<"OK"<<std::endl;
+        //std::cout<<"OK"<<std::endl;
         distance_variations.push_back(current_distance - previous_distance);
         previous_distance=current_distance;
     }
@@ -1582,7 +1579,7 @@ void ShapeAnalyzer::generate_connected_components_list_of_extended_refined_adjac
 }
 
 std::pair<std::stack<std::pair<int, int>>, std::stack<int>> ShapeAnalyzer::get_extended_path(std::multimap<std::pair<int, int>, std::pair<int, int>> graph, int init, int end, Eigen::Vector3f grasp_line, std::pair<int, int> opposite_component_init, std::pair<int, int> opposite_component_end, int initial_angle, int desired_angle){
-    std::cout<<"computing (e)path from: "<<init<<" to "<<end<<std::endl;
+    //std::cout<<"computing (e)path from: "<<init<<" to "<<end<<std::endl;
     std::pair<std::stack<std::pair<int, int>>, std::stack<int>> empty;
 
     if(node_angle_to_angle_component.count(std::pair<int, int>(init, initial_angle))<1){
@@ -1660,8 +1657,8 @@ std::pair<std::stack<std::pair<int, int>>, std::stack<int>> ShapeAnalyzer::get_e
     dist[node_to_int_idx.at(init_node)]=0;
     dist_faked[node_to_int_idx.at(init_node)]=0;
 
-    std::cout<<std::endl<<"---------------------------------------------"<<std::endl;
-    std::cout<<"data structures initialized for graph search."<<std::endl;
+    //std::cout<<std::endl<<"---------------------------------------------"<<std::endl;
+    //std::cout<<"data structures initialized for graph search."<<std::endl;
 
     int u;
     std::pair<int, int> u_node;
@@ -1669,7 +1666,7 @@ std::pair<std::stack<std::pair<int, int>>, std::stack<int>> ShapeAnalyzer::get_e
     std::stack<std::pair<int, int>> S_node;
     //iterate over the vertices
     while(Q.size()>0){
-        std::cout<<"=========================================================================== size: "<<Q.size()<<std::endl;
+        //std::cout<<"=========================================================================== size: "<<Q.size()<<std::endl;
         //get element with minimum distance
         std::vector<double>::iterator it=std::min_element(std::begin(dist_faked), std::end(dist_faked)); 
         u=std::distance(std::begin(dist_faked), it);
@@ -1777,7 +1774,7 @@ std::pair<std::stack<std::pair<int, int>>, std::stack<int>> ShapeAnalyzer::get_e
             //std::cout<<"Found Path!"<<std::endl;
             //do something
             while(prev[u]!=-1){
-                std::cout<<"u: "<<u<<std::endl;
+                //std::cout<<"u: "<<u<<std::endl;
                 S.push(int_idx_to_node.at(u).first);
                 S_node.push(int_idx_to_node.at(u));
                 u=prev[u];
@@ -1793,7 +1790,7 @@ std::pair<std::stack<std::pair<int, int>>, std::stack<int>> ShapeAnalyzer::get_e
         return std::pair<std::stack<std::pair<int, int>>, std::stack<int>>(S_node, S);
     }
 
-    std::cout<<"Found (s)path of length: "<<S.size()-1<<std::endl;
+    std::cout<<"Found (e)path of length: "<<S.size()-1<<std::endl;
     return std::pair<std::stack<std::pair<int, int>>, std::stack<int>>(S_node, S);
 }
 
@@ -1811,19 +1808,19 @@ void ShapeAnalyzer::compute_extended_path(int finger_id){
     Eigen::Vector3f grasp_point1, grasp_point2, grasp_line;
     grasp_point1<<initial_pose_1(0, 0), initial_pose_1(1, 0), initial_pose_1(2, 0);
     grasp_point2<<initial_pose_2(0, 0), initial_pose_2(1, 0), initial_pose_2(2, 0);
-    std::cout<<"grasp points: "<<std::endl<<grasp_point1.transpose()<<std::endl<<grasp_point2.transpose()<<std::endl;
+    //std::cout<<"grasp points: "<<std::endl<<grasp_point1.transpose()<<std::endl<<grasp_point2.transpose()<<std::endl;
     grasp_line=grasp_point2-grasp_point1;
     grasp_line.normalize();
-    std::cout<<"initial grasp line: "<<grasp_line.transpose()<<std::endl;
+    //std::cout<<"initial grasp line: "<<grasp_line.transpose()<<std::endl;
     //check if the desired contact is valid
     grasp_point1=Eigen::Vector3f(desired_pose_1(0, 0), desired_pose_1(1, 0), desired_pose_1(2, 0));
     grasp_point2=Eigen::Vector3f(desired_pose_2(0, 0), desired_pose_2(1, 0), desired_pose_2(2, 0));
-    std::cout<<"desired points: "<<std::endl<<grasp_point1.transpose()<<std::endl<<grasp_point2.transpose()<<std::endl;
+    //std::cout<<"desired points: "<<std::endl<<grasp_point1.transpose()<<std::endl<<grasp_point2.transpose()<<std::endl;
     Eigen::Vector3f desired_grasp_line=grasp_point2-grasp_point1;
     desired_grasp_line.normalize();
-    std::cout<<"desired grasp line: "<<desired_grasp_line.transpose()<<std::endl;
-    std::cout<<"diff vector: "<<(grasp_line-desired_grasp_line).transpose()<<std::endl;
-    std::cout<<"diff norm: "<<(grasp_line-desired_grasp_line).norm()<<std::endl;
+    //std::cout<<"desired grasp line: "<<desired_grasp_line.transpose()<<std::endl;
+    //std::cout<<"diff vector: "<<(grasp_line-desired_grasp_line).transpose()<<std::endl;
+    //std::cout<<"diff norm: "<<(grasp_line-desired_grasp_line).norm()<<std::endl;
     if(fabs((grasp_line-desired_grasp_line).norm())>0.3){
         std::cout<<"Wrong final pose. Rotation around different axes could be required."<<std::endl;
         return;
@@ -2081,8 +2078,8 @@ std::pair<std::pair<int, int>, std::pair<int, int>> ShapeAnalyzer::get_int_angle
         int_desired_angle=0;
     }
 
-    std::cout<<"Initial angle: "<<int_initial_angle<<std::endl;
-    std::cout<<"Desired angle: "<<int_desired_angle<<std::endl;
+    //std::cout<<"Initial angle: "<<int_initial_angle<<std::endl;
+    //std::cout<<"Desired angle: "<<int_desired_angle<<std::endl;
 
     //do the same thing with the slave contact:
     Eigen::Vector3f slave_x_prime=slave_initial_gripper_to_component.block<3, 1>(0, 0);
@@ -2117,16 +2114,16 @@ std::pair<std::pair<int, int>, std::pair<int, int>> ShapeAnalyzer::get_int_angle
         slave_int_desired_angle=0;
     }
 
-    std::cout<<"Slave Initial angle: "<<slave_int_initial_angle<<std::endl;
-    std::cout<<std::endl;
+    //std::cout<<"Slave Initial angle: "<<slave_int_initial_angle<<std::endl;
+    //std::cout<<std::endl;
 
     //std::cout<<"Index: "<<index<<std::endl;
     //now cicle backwards the nodes to compute the sequence of angles
     std::set<int> current_node_angles=possible_angles.at(desired_contact_index);
     std::set<int> next_node_angles;
     int current_angle=int_desired_angle;
-    std::cout<<"master desired angle: "<<current_angle<<std::endl;
-    std::cout<<"master desired contact idx: "<<desired_contact_index<<std::endl;
+    //std::cout<<"master desired angle: "<<current_angle<<std::endl;
+    //std::cout<<"master desired contact idx: "<<desired_contact_index<<std::endl;
     //first of all check if it is possible. If it is not, well... the list of angles will be empty and the task is impossible to solve
     if(current_node_angles.find(current_angle)==current_node_angles.end()){
         std::cout<<"The desired angle cannot be achieved."<<std::endl;
@@ -2135,8 +2132,8 @@ std::pair<std::pair<int, int>, std::pair<int, int>> ShapeAnalyzer::get_int_angle
     //check also for the slave finger final pose:
     std::set<int> slave_current_node_angles=possible_angles.at(slave_desired_contact_index);
     int slave_current_angle=slave_int_desired_angle;
-    std::cout<<"slave desired angle: "<<slave_current_angle<<std::endl;
-    std::cout<<"slave desired contact idx: "<<slave_desired_contact_index<<std::endl;
+    //std::cout<<"slave desired angle: "<<slave_current_angle<<std::endl;
+    //std::cout<<"slave desired contact idx: "<<slave_desired_contact_index<<std::endl;
     if(slave_current_node_angles.find(slave_current_angle)==slave_current_node_angles.end()){
         std::cout<<"The desired angle cannot be achieved."<<std::endl;
         return empty_pair;
