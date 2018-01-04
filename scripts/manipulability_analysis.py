@@ -162,7 +162,7 @@ def main():
 
     j_max = 0
     #now loop through all the poses and combinations to get the values in the matrix
-    for i in range(0, idx + 1):
+    for i in range(0, idx):
         #the second range changes because the matrix is symmetric and not every pose combination has to be checked twice!
         for j in range(0, j_max):
             # print "i: " + str(i)
