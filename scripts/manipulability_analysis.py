@@ -139,23 +139,23 @@ def main():
             p_source = [min_x - 1000, y, z]
             p_dest = [max_x + 1000, y, z]
             intersections = caster.castRay(p_source, p_dest)
-            print "source: " + str(p_source) + "   dest: " + str(p_dest)
+            # print "source: " + str(p_source) + "   dest: " + str(p_dest)
             if(len(intersections) < 2):
-                print "   XXX"
+                # print "   XXX"
                 for angle in np.arange(0, max_angle, angle_step):
                     poses[idx] = [None, None]
                     idx = idx + 1
             else:
                 x_low_limit = intersections[0][0]
                 x_upper_limit = intersections[-1][0]
-                print "   x limits: " + str(x_low_limit) + "   " + str(x_upper_limit) 
+                # print "   x limits: " + str(x_low_limit) + "   " + str(x_upper_limit) 
                 for angle in np.arange(0, max_angle, angle_step):
                     #insert the pose in the dictionary
                     fing_poses = computeFingersPoses(x_low_limit, x_upper_limit, y, y, z, z, 0, angle*math.pi/180.0, math.pi/2.0)
                     poses[idx] = fing_poses
                     idx = idx + 1
 
-    print ""
+    # print ""
 
     #variations on y (working, verified):
     for x in np.arange(min_x2, max_x2, x_step):
@@ -164,23 +164,23 @@ def main():
             p_source = [x, min_y - 1000, z]
             p_dest = [x, max_y + 1000, z]
             intersections = caster.castRay(p_source, p_dest)
-            print "source: " + str(p_source) + "   dest: " + str(p_dest)
+            # print "source: " + str(p_source) + "   dest: " + str(p_dest)
             if(len(intersections) < 2):
-                print "   XXX"
+                # print "   XXX"
                 for angle in np.arange(0, max_angle, angle_step):
                     poses[idx] = [None, None]
                     idx = idx + 1
             else:
                 y_low_limit = intersections[0][1]
                 y_upper_limit = intersections[-1][1]
-                print "   y limits: " + str(y_low_limit) + "   " + str(y_upper_limit) 
+                # print "   y limits: " + str(y_low_limit) + "   " + str(y_upper_limit) 
                 for angle in np.arange(0, max_angle, angle_step):
                     #insert the pose in the dictionary
                     fing_poses = computeFingersPoses(x, x, y_low_limit, y_upper_limit, z, z, math.pi/2.0, angle*math.pi/180.0, 0)
                     poses[idx] = fing_poses
                     idx = idx + 1
 
-    print ""
+    # print ""
 
     #variations on z (working, verified):
     for x in np.arange(min_x2, max_x2, x_step):
@@ -189,16 +189,16 @@ def main():
             p_source = [x, y, min_z - 1000]
             p_dest = [x, y, max_z + 1000]
             intersections = caster.castRay(p_source, p_dest)
-            print "source: " + str(p_source) + "   dest: " + str(p_dest)
+            # print "source: " + str(p_source) + "   dest: " + str(p_dest)
             if(len(intersections) < 2):
-                print "   XXX"
+                # print "   XXX"
                 for angle in np.arange(0, max_angle, angle_step):
                     poses[idx] = [None, None]
                     idx = idx + 1
             else:
                 z_low_limit = intersections[0][2]
                 z_upper_limit = intersections[-1][2]
-                print "   z limits: " + str(z_low_limit) + "   " + str(z_upper_limit) 
+                # print "   z limits: " + str(z_low_limit) + "   " + str(z_upper_limit) 
                 for angle in np.arange(0, max_angle, angle_step):
                     #insert the pose in the dictionary
                     poses[idx] = computeFingersPoses(x, x, y, y, z_low_limit, z_upper_limit, math.pi/2.0, 0, angle*math.pi/180.0)
@@ -220,8 +220,8 @@ def main():
                 # print "poses[i]: " + str(poses[i])
                 # print "poses[j]: " + str(poses[j])
                 if pose1 is None or pose1d is None:
-                    manipulability_matrix[i, j] = 0
-                    manipulability_matrix[j, i] = 0
+                    manipulability_matrix[i, j] = -1
+                    manipulability_matrix[j, i] = -1
                 else:
                     result = call_server(server_name, pose1, pose2, pose1d, pose2d)
                     manipulability_matrix[i, j] = result
