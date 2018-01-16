@@ -922,6 +922,7 @@ void ShapeAnalyzer::refine_adjacency(){
                 //inwards_normal=(inwards_count>outwards_count);
                 //if(nodes[idx] == 77){
                 if(false){
+                //if(component == 18){
                     std::cout<<"found inwards pos, neg: "<<found_y_neg_i<<" "<<found_y_pos_i<<" "<<found_z_neg_i<<" "<<found_z_pos_i<<std::endl;
                     std::cout<<"INWARDS COUNT: "<<inwards_count<<std::endl;
                     std::cout<<"found outwards pos, neg: "<<found_y_neg_o<<" "<<found_y_pos_o<<" "<<found_z_neg_o<<" "<<found_z_pos_o<<std::endl;
@@ -934,6 +935,9 @@ void ShapeAnalyzer::refine_adjacency(){
                     else if(found_y_neg_i && found_y_pos_i && found_z_neg_i && found_z_pos_i){
                         inwards_normal=true;
                     }
+                }
+                else if(inwards_count > outwards_count){
+                    inwards_normal=true;
                 }
                 
                 for(int i=0; i<pointIdxRadiusSearch.size(); i++){
@@ -1036,6 +1040,7 @@ void ShapeAnalyzer::refine_adjacency(){
                 //if(idx == 1 && component== 0){
                 if(false){
                 //if(nodes[idx] == 77){
+                //if(component == 18){
                     std::cout<<"==========idx: "<<idx<<std::endl;
                     std::cout<<"=================== node: "<<nodes[idx]<<std::endl;
                     std::cout<<"inwards normal: "<<inwards_normal<<std::endl;
