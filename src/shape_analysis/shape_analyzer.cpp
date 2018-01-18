@@ -1038,8 +1038,8 @@ void ShapeAnalyzer::refine_adjacency(){
                     }
                 }
                 //if(idx == 1 && component== 0){
-                if(false){
-                //if(nodes[idx] == 77){
+                //if(false){
+                if(nodes[idx] == 53 || nodes[idx] == 58 || nodes[idx] == 55 || nodes[idx] ==114){
                 //if(component == 18){
                     std::cout<<"==========idx: "<<idx<<std::endl;
                     std::cout<<"=================== node: "<<nodes[idx]<<std::endl;
@@ -1086,6 +1086,9 @@ void ShapeAnalyzer::refine_adjacency(){
             std::set<int> node_angles=possible_angles.at(*it);
             //if this node has no possible angles, it will be removed from the connected component and not added to the new adjacency map
             uint32_t node=*it;
+            //debug prints:
+            if(node==53||node==55||node==58||node==114)
+                std::cout<<"node: "<<node<<"   set size: "<<node_angles.size()<<std::endl;
             if(node_angles.size()<1){
                 connected_component_to_set_of_nodes.at(component).erase(node);
                 nodes_to_connected_component.erase(node);
@@ -1101,9 +1104,13 @@ void ShapeAnalyzer::refine_adjacency(){
                 //now loop over all the components
                 std::multimap<uint32_t,uint32_t>::iterator adjacent_itr=refined_adjacency.equal_range(node).first;
                 for ( ; adjacent_itr!=refined_adjacency.equal_range(node).second; adjacent_itr++){
+                    if(node==53||node==55||node==58||node==114)
+                        std::cout<<"   adjacent node: "<<adjacent_itr->second<<" set size: "<<possible_angles.at(adjacent_itr->second).size()<<std::endl;
                     //get the intersection between the two 
                     std::set<int> angles_intersection;
                     std::set_intersection(node_angles.begin(), node_angles.end(), possible_angles.at(adjacent_itr->second).begin(), possible_angles.at(adjacent_itr->second).end(), std::inserter(angles_intersection, angles_intersection.begin()));
+                    if(node==53||node==55||node==58||node==114)
+                        std::cout<<"   intersection size: "<<angles_intersection.size()<<std::endl;
                     if(angles_intersection.size()>0){
                         angles_refined_adjacency.insert(std::pair<uint32_t, uint32_t>(node, adjacent_itr->second));
                         adjacent_supervoxel_centers.push_back(supervoxel_clusters.at(adjacent_itr->second)->centroid_);
@@ -1115,17 +1122,23 @@ void ShapeAnalyzer::refine_adjacency(){
                         std::vector<int> adjacent_node_angle_components=node_to_angle_components.at(adjacent_itr->second);
                         //std::cout<<"OK"<<std::endl;
                         for(int ac_idx=0; ac_idx<current_node_angle_components.size(); ac_idx++){
-                            //std::cout<<"pair 1: "<<node<<" "<<ac_idx<<std::endl;
                             std::set<int> node_component_set=node_component_to_angles_subset.at(std::pair<int, int>(node, ac_idx));
+                            if(node==53||node==55||node==58||node==114)
+                                std::cout<<"        pair 1: "<<node<<" "<<ac_idx<<"   size: "<<node_component_set.size()<<std::endl;
                             //std::cout<<"OK"<<std::endl;
                             for(int ac_jdx=0; ac_jdx<adjacent_node_angle_components.size(); ac_jdx++){
-                                //std::cout<<"pair 1: "<<adjacent_itr->second<<" "<<ac_jdx<<std::endl;
                                 std::set<int> adjacent_component_set=node_component_to_angles_subset.at(std::pair<int, int>(adjacent_itr->second, ac_jdx));
+                                if(node==53||node==55||node==58||node==114)
+                                    std::cout<<"          pair 2: "<<adjacent_itr->second<<" "<<ac_jdx<<"   "<<adjacent_component_set.size()<<std::endl;
                                 //std::cout<<"OK"<<std::endl;
                                 std::set<int> component_angles_intersection;
                                 std::set_intersection(node_component_set.begin(), node_component_set.end(), adjacent_component_set.begin(), adjacent_component_set.end(), std::inserter(component_angles_intersection, component_angles_intersection.begin()));
                                 //if the components have an intersection, add this connection to the graph!
-                                extended_refined_adjacency.insert(std::pair<std::pair<uint32_t, int>, std::pair<uint32_t, int>>(std::pair<uint32_t, int>(node, ac_idx), std::pair<uint32_t, int>(adjacent_itr->second, ac_jdx)));
+                                if(node==53||node==55||node==58||node==114)
+                                    std::cout<<"               intersection size: "<<component_angles_intersection.size()<<std::endl;
+                                if(component_angles_intersection.size()>0){
+                                    extended_refined_adjacency.insert(std::pair<std::pair<uint32_t, int>, std::pair<uint32_t, int>>(std::pair<uint32_t, int>(node, ac_idx), std::pair<uint32_t, int>(adjacent_itr->second, ac_jdx)));
+                                }
                             }
 
                         }
@@ -1267,10 +1280,10 @@ void ShapeAnalyzer::compute_angle_sequence(std::vector<int> path, int finger_id)
     slave_initial_gripper_to_base=slave_q1.toRotationMatrix();
     slave_desired_gripper_to_base=slave_q2.toRotationMatrix();
 
-    // std::cout<<"slave initial gripper to base: "<<std::endl<<slave_initial_gripper_to_base<<std::endl<<std::endl;
-    // std::cout<<"slave desired gripper to base: "<<std::endl<<slave_desired_gripper_to_base<<std::endl<<std::endl;
-    // std::cout<<"slave component to base: "<<std::endl<<slave_component_to_base<<std::endl<<std::endl;
-    // std::cout<<"slave component to base transpose: "<<std::endl<<slave_component_to_base.transpose()<<std::endl<<std::endl;
+    std::cout<<"slave initial gripper to base: "<<std::endl<<slave_initial_gripper_to_base<<std::endl<<std::endl;
+    std::cout<<"slave desired gripper to base: "<<std::endl<<slave_desired_gripper_to_base<<std::endl<<std::endl;
+    std::cout<<"slave component to base: "<<std::endl<<slave_component_to_base<<std::endl<<std::endl;
+    std::cout<<"slave component to base transpose: "<<std::endl<<slave_component_to_base.transpose()<<std::endl<<std::endl;
 
     //now get the vector Z' of the gripper expressed in the component's reference frame
     Eigen::Matrix3f initial_gripper_to_component=component_to_base.transpose()*initial_gripper_to_base;
@@ -1279,8 +1292,8 @@ void ShapeAnalyzer::compute_angle_sequence(std::vector<int> path, int finger_id)
     Eigen::Matrix3f slave_initial_gripper_to_component=slave_component_to_base.transpose()*slave_initial_gripper_to_base;
     Eigen::Matrix3f slave_desired_gripper_to_component=slave_component_to_base.transpose()*slave_desired_gripper_to_base;
 
-    //std::cout<<"initial gripper to component: "<<std::endl<<initial_gripper_to_component<<std::endl<<std::endl;
-    //std::cout<<"desired gripper to component: "<<std::endl<<desired_gripper_to_component<<std::endl<<std::endl;
+    std::cout<<"initial gripper to component: "<<std::endl<<initial_gripper_to_component<<std::endl<<std::endl;
+    std::cout<<"desired gripper to component: "<<std::endl<<desired_gripper_to_component<<std::endl<<std::endl;
 
     //the first column of the matrix is the x vector of the gripper. this one has to be inverted and then the angle w.r.t. the y axis of the gripper can be found
     Eigen::Vector3f x_prime=initial_gripper_to_component.block<3, 1>(0, 0);
@@ -1459,6 +1472,8 @@ void ShapeAnalyzer::generate_angles_components_structures(int node_id){
 
     //loop through the angles in the possible angle set
     std::set<int> node_angles=possible_angles.at(node_id);
+    if(node_id == 114)
+        std::cout<<" +++++ 114 set size: "<<possible_angles.size()<<std::endl;
     std::vector<int> all_angle_components;
     //the std::set is ordered from low to high (lucky us)
     //start the first component, proceed until there is a jump of more than 5 degrees (angle_jump), then start a new component
@@ -1490,6 +1505,8 @@ void ShapeAnalyzer::generate_angles_components_structures(int node_id){
             //add the angles obtained so far to the structure
             //node_angle_to_connected_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>*>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
             all_angle_components.push_back(angle_component);
+            if(node_id == 114)
+                std::cout<<"++++++ 114 inserting component: "<<angle_component<<" of size: "<<component_angles_subset.size()<<std::endl;
             node_component_to_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
             //advance the component
             angle_component++;
@@ -1506,11 +1523,15 @@ void ShapeAnalyzer::generate_angles_components_structures(int node_id){
     //check if the last component is connected to the first one (last angle 360-angle jump and first angle 0)
     int last_angle=prev_angle;
     if(angle_component>0 &&first_angle==0 && last_angle==(360 - angle_jump)){
-        //std::cout<<"merging"<<std::endl;
+        if(node_id == 114)
+            std::cout<<"merging"<<std::endl;
         //instead of adding this additional component, merge the current set with the first one
         std::set<int> first_subset=node_component_to_angles_subset.at(std::pair<int, int>(node_id, 0));
         std::set<int> union_set;
         std::set_union(first_subset.begin(), first_subset.end(), component_angles_subset.begin(), component_angles_subset.end(), std::inserter(union_set, union_set.begin()));
+        if(node_id == 114)
+            std::cout<<"    inserting component: "<<angle_component<<" of size: "<<union_set.size()<<std::endl;
+        node_component_to_angles_subset.erase(std::pair<int, int>(node_id, 0));
         node_component_to_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>>(std::pair<int, int>(node_id, 0), union_set));
         //change all the nodes in the set into the first component
         for(std::set<int>::iterator angles_iterator=component_angles_subset.begin(); angles_iterator!=component_angles_subset.end(); angles_iterator++){
@@ -1524,6 +1545,8 @@ void ShapeAnalyzer::generate_angles_components_structures(int node_id){
     //add the last component
     //node_angle_to_connected_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
     all_angle_components.push_back(angle_component);
+    if(node_id == 114)
+        std::cout<<"    +++inserting component: "<<angle_component<<" of size: "<<component_angles_subset.size()<<std::endl;
     node_component_to_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
 
     node_to_angle_components.insert(std::pair<int, std::vector<int>>(node_id, all_angle_components));
@@ -1584,7 +1607,7 @@ void ShapeAnalyzer::generate_connected_components_list_of_extended_refined_adjac
 }
 
 std::pair<std::stack<std::pair<int, int>>, std::stack<int>> ShapeAnalyzer::get_extended_path(std::multimap<std::pair<int, int>, std::pair<int, int>> graph, int init, int end, Eigen::Vector3f grasp_line, std::pair<int, int> opposite_component_init, std::pair<int, int> opposite_component_end, int initial_angle, int desired_angle){
-    //std::cout<<"computing (e)path from: "<<init<<" to "<<end<<std::endl;
+    std::cout<<"computing (e)path from: "<<init<<" to "<<end<<std::endl;
     std::pair<std::stack<std::pair<int, int>>, std::stack<int>> empty;
 
     if(node_angle_to_angle_component.count(std::pair<int, int>(init, initial_angle))<1){
@@ -1598,6 +1621,8 @@ std::pair<std::stack<std::pair<int, int>>, std::stack<int>> ShapeAnalyzer::get_e
 
     int initial_angle_component=node_angle_to_angle_component.at(std::pair<int, int>(init, initial_angle));
     int desired_angle_component=node_angle_to_angle_component.at(std::pair<int, int>(end, desired_angle));
+    std::cout<<"initial angle component: "<<initial_angle_component<<std::endl;
+    std::cout<<"desired angle component: "<<desired_angle_component<<std::endl;
     std::pair<int, int> init_node(init, initial_angle_component);
     std::pair<int, int> goal_node(end, desired_angle_component);
 
@@ -1776,10 +1801,10 @@ std::pair<std::stack<std::pair<int, int>>, std::stack<int>> ShapeAnalyzer::get_e
 
         }
         else{
-            //std::cout<<"Found Path!"<<std::endl;
+            std::cout<<"Found Path!"<<std::endl;
             //do something
             while(prev[u]!=-1){
-                //std::cout<<"u: "<<u<<std::endl;
+                std::cout<<"u: "<<u<<std::endl;
                 S.push(int_idx_to_node.at(u).first);
                 S_node.push(int_idx_to_node.at(u));
                 u=prev[u];
@@ -2047,8 +2072,8 @@ std::pair<std::pair<int, int>, std::pair<int, int>> ShapeAnalyzer::get_int_angle
     Eigen::Matrix3f slave_initial_gripper_to_component=slave_component_to_base.transpose()*slave_initial_gripper_to_base;
     Eigen::Matrix3f slave_desired_gripper_to_component=slave_component_to_base.transpose()*slave_desired_gripper_to_base;
 
-    //std::cout<<"initial gripper to component: "<<std::endl<<initial_gripper_to_component<<std::endl<<std::endl;
-    //std::cout<<"desired gripper to component: "<<std::endl<<desired_gripper_to_component<<std::endl<<std::endl;
+    // std::cout<<"initial gripper to component: "<<std::endl<<initial_gripper_to_component<<std::endl<<std::endl;
+    // std::cout<<"desired gripper to component: "<<std::endl<<desired_gripper_to_component<<std::endl<<std::endl;
 
     //the first column of the matrix is the x vector of the gripper. this one has to be inverted and then the angle w.r.t. the y axis of the gripper can be found
     Eigen::Vector3f x_prime=initial_gripper_to_component.block<3, 1>(0, 0);
@@ -2083,8 +2108,8 @@ std::pair<std::pair<int, int>, std::pair<int, int>> ShapeAnalyzer::get_int_angle
         int_desired_angle=0;
     }
 
-    //std::cout<<"Initial angle: "<<int_initial_angle<<std::endl;
-    //std::cout<<"Desired angle: "<<int_desired_angle<<std::endl;
+    std::cout<<"Initial angle: "<<int_initial_angle<<std::endl;
+    std::cout<<"Desired angle: "<<int_desired_angle<<std::endl;
 
     //do the same thing with the slave contact:
     Eigen::Vector3f slave_x_prime=slave_initial_gripper_to_component.block<3, 1>(0, 0);
@@ -2161,7 +2186,7 @@ void ShapeAnalyzer::compute_extended_angle_sequence(std::vector<std::pair<int, i
     angle_sequence[index]=double(init_angle)*M_PI/180.0;
     index=index+1;
     int current_angle=init_angle;
-    //std::cout<<"Index: "<<index<<std::endl;
+    std::cout<<"Index: "<<index<<std::endl;
     while(index<path.size()){
         prev_node_angles=current_node_angles;
         if(node_component_to_angles_subset.count(path[index])<1){
@@ -2188,12 +2213,13 @@ void ShapeAnalyzer::compute_extended_angle_sequence(std::vector<std::pair<int, i
             angle_sequence[index]=double(current_angle)*M_PI/180.0;
         }
         index=index+1;
-        //std::cout<<"Index: "<<index<<std::endl;
+        std::cout<<"Index: "<<index<<std::endl;
     }
 
     //now change the list so that it becomes a list of deltas
     double last_angle=desired_angle*M_PI/180.0; //this is the last angle
     for(int i=angle_sequence.size()-1 ; i>=0; i--){
+        std::cout<<"angle ["<<i<<"] = "<<angle_sequence[i]<<std::endl;
         angle_sequence[i]=last_angle-angle_sequence[i];
         last_angle=last_angle-angle_sequence[i];//uptade to the next angle
     }
