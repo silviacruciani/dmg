@@ -41,7 +41,7 @@ bool InHandPathServer::compute_path(InHandPath::Request &req, InHandPath::Respon
 }
 
 void InHandPathServer::init(ros::NodeHandle &n){
-    std::string object_name, object_file_path;
+    std::string object_name, object_file_path, service_name;
     double finger_length, voxel_resolution, seed_resolution, color_importance, spatial_importance, normal_importance;
     int refinement_iterations;
     bool disable_transform;
@@ -86,6 +86,10 @@ void InHandPathServer::init(ros::NodeHandle &n){
         disable_transform=true;
         std::cout<<"No disable transform specified. Using default: "<<disable_transform<<std::endl;
     }
+    if(!n.getParam("service_name", service_name)){
+        service_name="in_hand_path";
+        std::cout<<"No service name specified. Using default: "<<service_name<<std::endl;
+    }
 
 
     shape_analizer=ShapeAnalyzer();
@@ -95,7 +99,7 @@ void InHandPathServer::init(ros::NodeHandle &n){
     shape_analizer.get_supervoxels();
     shape_analizer.refine_adjacency();
 
-    service=n.advertiseService("in_hand_path", &InHandPathServer::compute_path, this);
+    service=n.advertiseService(service_name, &InHandPathServer::compute_path, this);
     ROS_INFO("Shape analysis complete. Ready to compute in hand path.");
 }
 
