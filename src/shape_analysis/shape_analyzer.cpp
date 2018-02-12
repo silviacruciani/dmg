@@ -10,6 +10,8 @@
 #include <math.h>
 #include <pcl/common/transforms.h>
 #include <pcl/filters/passthrough.h>
+#include <pcl/PolygonMesh.h>
+#include <pcl/io/vtk_lib_io.h>
 
 
 using namespace shape_analysis;
@@ -37,6 +39,8 @@ void ShapeAnalyzer::set_object_from_pointcloud(std::string file_name){
         std::cout<<"Error loading model cloud."<<std::endl;
     }
     object_shape=in_cloud;
+    
+
     //print the dimensions:
     pcl::PointXYZ max, min;
     pcl::getMinMax3D(*object_shape, min, max);
@@ -45,13 +49,33 @@ void ShapeAnalyzer::set_object_from_pointcloud(std::string file_name){
     object_center<<(max.x - min.x)/2.0, (max.y - min.y)/2.0, (max.z - min.z)/2.0;
     //visualizer to be used for debug purposes
     viewer=new pcl::visualization::PCLVisualizer ("3D Viewer");
+    //visualize the input point cloud
     int v(0);
-    v1=v;
-    viewer->createViewPort (0.0, 0.0, 0.5, 1.0, v1);
-    viewer->setBackgroundColor(0, 0, 0, v1);
-    viewer->addCoordinateSystem(15.0);
+    viewer->createViewPort (0.0, 0.0, 0.5, 1.0, v);
+    viewer->setBackgroundColor(1, 1, 1, v);
     viewer->initCameraParameters();
-    viewer->addText ("supervoxels and adjacency", 10, 10, "v1 text", v1);
+    pcl::PolygonMesh meshfile;
+    pcl::io::loadPolygonFileSTL("/home/silvia/catkin_ws/src/shape_analysis/shapes/shape6.stl", meshfile);
+
+    vtkSmartPointer<vtkPolyData> colorable_shape;
+    pcl::io::mesh2vtk(meshfile, colorable_shape);
+
+    //pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZ> single_color(object_shape, 160, 160, 160);
+    //viewer->addPointCloud<pcl::PointXYZ> (object_shape, single_color, "object", v);
+    //viewer->addPolygonMesh(meshfile, "object", v);
+    viewer->addModelFromPolyData(colorable_shape, "object", v);
+    //viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 0, 0, 1, "object", v);
+
+    int vv(0);
+    v = vv;
+
+
+    v1=v;
+    //viewer->createViewPort (0.33, 0.0, 0.66, 1.0, v1);
+    //viewer->setBackgroundColor(1, 1, 1, v1);
+    //viewer->addCoordinateSystem(15.0);
+    //viewer->initCameraParameters();
+    //viewer->addText ("supervoxels and adjacency", 10, 10, "v1 text", v1);
     //viewer for debug
     //viewer->addPointCloud<pcl::PointXYZ> (object_shape, "object");
     //use a separate thread for the viewer (non blocking)
@@ -118,19 +142,20 @@ void ShapeAnalyzer::get_supervoxels(){
     voxel_centroid_cloud=super.getVoxelCentroidCloud();
     std::cout<<"VoxelCentroidCloud size: "<<voxel_centroid_cloud->points.size()<<std::endl;
 
-    viewer->addPointCloud (voxel_centroid_cloud, "voxel centroids", v1);
+    /*viewer->addPointCloud (voxel_centroid_cloud, "voxel centroids", v1);
     viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, "voxel centroids");
-    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_OPACITY, 0.95, "voxel centroids");
+    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_OPACITY, 0.95, "voxel centroids");*/
 
     labeled_voxel_cloud = super.getLabeledVoxelCloud ();
+    /*
     viewer->addPointCloud (labeled_voxel_cloud, "labeled voxels", v1);
     viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, "labeled voxels");
-    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_OPACITY,0.8, "labeled voxels");
+    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_OPACITY,0.8, "labeled voxels");*/
 
     //get the normals
     sv_normal_cloud = super.makeSupervoxelNormalCloud (supervoxel_clusters);
     std::cout<<"VoxelNormalCloud size: "<<sv_normal_cloud->points.size()<<std::endl;
-    viewer->addPointCloudNormals<pcl::PointNormal> (sv_normal_cloud,1, 5.0, "supervoxel_normals", v1);
+    //viewer->addPointCloudNormals<pcl::PointNormal> (sv_normal_cloud,1, 5.0, "supervoxel_normals", v1);
 
     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr centroids_cloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
     pcl::PointCloud<pcl::Normal>::Ptr normals_cloud(new pcl::PointCloud<pcl::Normal>);
@@ -196,7 +221,8 @@ void ShapeAnalyzer::get_supervoxels(){
         std::stringstream ss;
         ss << "supervoxel_" << supervoxel_label;
         //This function is shown below, but is beyond the scope of this tutorial - basically it just generates a "star" polygon mesh from the points given
-        addSupervoxelConnectionsToViewer (supervoxel->centroid_, adjacent_supervoxel_centers, ss.str (), viewer, v1);
+        /*addSupervoxelConnectionsToViewer (supervoxel->centroid_, adjacent_supervoxel_centers, ss.str (), viewer, v1);
+        viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 0, 0, 0, ss.str(), v1);*/
         //Move iterator forward to next label
         label_itr = supervoxel_adjacency.upper_bound (supervoxel_label);
     }
@@ -312,7 +338,7 @@ void ShapeAnalyzer::set_initial_contact(geometry_msgs::Point p, geometry_msgs::Q
     Eigen::Matrix3f cube_rot_matrix=cube_or.toRotationMatrix();
     //std::cout<<"matrix: "<<std::endl<<cube_rot_matrix<<std::endl;
     cube_pos=cube_pos+cube_rot_matrix*Eigen::Vector3f(-l_finger/2+1.5, 0, 0);
-    viewer->addCube(cube_pos, cube_or, l_finger, 3, 3, "initial contact "+std::to_string(finger_id));
+    viewer->addCube(cube_pos, cube_or, l_finger, 6, 6, "initial contact "+std::to_string(finger_id));
     viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 0.0, 0.0, "initial contact "+std::to_string(finger_id));
     viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.3, "initial contact "+std::to_string(finger_id));
 
@@ -338,7 +364,7 @@ void ShapeAnalyzer::set_desired_contact(geometry_msgs::Point p, geometry_msgs::Q
     Eigen::Quaternionf cube_or(q.w, q.x, q.y, q.z);
     Eigen::Matrix3f cube_rot_matrix=cube_or.toRotationMatrix();
     cube_pos=cube_pos+cube_rot_matrix*Eigen::Vector3f(-l_finger/2+1.5, 0, 0);
-    viewer->addCube(cube_pos, cube_or, l_finger, 3, 3, "desired contact "+std::to_string(finger_id));
+    viewer->addCube(cube_pos, cube_or, l_finger, 6, 6, "desired contact "+std::to_string(finger_id));
     viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 1.0, 0.0, "desired contact "+std::to_string(finger_id));
     viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.3, "desired contact "+std::to_string(finger_id));
 
@@ -589,8 +615,8 @@ void ShapeAnalyzer::refine_adjacency(){
     int v(0);
     v2=v;
     viewer->createViewPort (0.5, 0.0, 1.0, 1.0, v2);
-    viewer->setBackgroundColor (0, 0, 0, v2);
-    viewer->addText ("refined adjacency", 10, 10, "v2 text", v2);
+    viewer->setBackgroundColor (1, 1, 1, v2);
+    //viewer->addText ("refined adjacency", 10, 10, "v2 text", v2);
     //scan the adjacency list to check for the normals
     std::multimap<uint32_t,uint32_t>::iterator label_itr=supervoxel_adjacency.begin();
     for ( ; label_itr!=supervoxel_adjacency.end();) {
@@ -1087,8 +1113,8 @@ void ShapeAnalyzer::refine_adjacency(){
             //if this node has no possible angles, it will be removed from the connected component and not added to the new adjacency map
             uint32_t node=*it;
             //debug prints:
-            if(node==53||node==55||node==58||node==114)
-                std::cout<<"node: "<<node<<"   set size: "<<node_angles.size()<<std::endl;
+            //if(node==53||node==55||node==58||node==114)
+                //std::cout<<"node: "<<node<<"   set size: "<<node_angles.size()<<std::endl;
             if(node_angles.size()<1){
                 connected_component_to_set_of_nodes.at(component).erase(node);
                 nodes_to_connected_component.erase(node);
@@ -1104,13 +1130,13 @@ void ShapeAnalyzer::refine_adjacency(){
                 //now loop over all the components
                 std::multimap<uint32_t,uint32_t>::iterator adjacent_itr=refined_adjacency.equal_range(node).first;
                 for ( ; adjacent_itr!=refined_adjacency.equal_range(node).second; adjacent_itr++){
-                    if(node==53||node==55||node==58||node==114)
-                        std::cout<<"   adjacent node: "<<adjacent_itr->second<<" set size: "<<possible_angles.at(adjacent_itr->second).size()<<std::endl;
+                    //if(node==53||node==55||node==58||node==114)
+                        //std::cout<<"   adjacent node: "<<adjacent_itr->second<<" set size: "<<possible_angles.at(adjacent_itr->second).size()<<std::endl;
                     //get the intersection between the two 
                     std::set<int> angles_intersection;
                     std::set_intersection(node_angles.begin(), node_angles.end(), possible_angles.at(adjacent_itr->second).begin(), possible_angles.at(adjacent_itr->second).end(), std::inserter(angles_intersection, angles_intersection.begin()));
-                    if(node==53||node==55||node==58||node==114)
-                        std::cout<<"   intersection size: "<<angles_intersection.size()<<std::endl;
+                    //if(node==53||node==55||node==58||node==114)
+                        //std::cout<<"   intersection size: "<<angles_intersection.size()<<std::endl;
                     if(angles_intersection.size()>0){
                         angles_refined_adjacency.insert(std::pair<uint32_t, uint32_t>(node, adjacent_itr->second));
                         adjacent_supervoxel_centers.push_back(supervoxel_clusters.at(adjacent_itr->second)->centroid_);
@@ -1123,19 +1149,19 @@ void ShapeAnalyzer::refine_adjacency(){
                         //std::cout<<"OK"<<std::endl;
                         for(int ac_idx=0; ac_idx<current_node_angle_components.size(); ac_idx++){
                             std::set<int> node_component_set=node_component_to_angles_subset.at(std::pair<int, int>(node, ac_idx));
-                            if(node==53||node==55||node==58||node==114)
-                                std::cout<<"        pair 1: "<<node<<" "<<ac_idx<<"   size: "<<node_component_set.size()<<std::endl;
+                            //if(node==53||node==55||node==58||node==114)
+                                //std::cout<<"        pair 1: "<<node<<" "<<ac_idx<<"   size: "<<node_component_set.size()<<std::endl;
                             //std::cout<<"OK"<<std::endl;
                             for(int ac_jdx=0; ac_jdx<adjacent_node_angle_components.size(); ac_jdx++){
                                 std::set<int> adjacent_component_set=node_component_to_angles_subset.at(std::pair<int, int>(adjacent_itr->second, ac_jdx));
-                                if(node==53||node==55||node==58||node==114)
-                                    std::cout<<"          pair 2: "<<adjacent_itr->second<<" "<<ac_jdx<<"   "<<adjacent_component_set.size()<<std::endl;
+                                //if(node==53||node==55||node==58||node==114)
+                                    //std::cout<<"          pair 2: "<<adjacent_itr->second<<" "<<ac_jdx<<"   "<<adjacent_component_set.size()<<std::endl;
                                 //std::cout<<"OK"<<std::endl;
                                 std::set<int> component_angles_intersection;
                                 std::set_intersection(node_component_set.begin(), node_component_set.end(), adjacent_component_set.begin(), adjacent_component_set.end(), std::inserter(component_angles_intersection, component_angles_intersection.begin()));
                                 //if the components have an intersection, add this connection to the graph!
-                                if(node==53||node==55||node==58||node==114)
-                                    std::cout<<"               intersection size: "<<component_angles_intersection.size()<<std::endl;
+                                //if(node==53||node==55||node==58||node==114)
+                                    //std::cout<<"               intersection size: "<<component_angles_intersection.size()<<std::endl;
                                 if(component_angles_intersection.size()>0){
                                     extended_refined_adjacency.insert(std::pair<std::pair<uint32_t, int>, std::pair<uint32_t, int>>(std::pair<uint32_t, int>(node, ac_idx), std::pair<uint32_t, int>(adjacent_itr->second, ac_jdx)));
                                 }
@@ -1153,7 +1179,7 @@ void ShapeAnalyzer::refine_adjacency(){
                 //This function is shown below, but is beyond the scope of this tutorial - basically it just generates a "star" polygon mesh from the points given
                 addSupervoxelConnectionsToViewer(node_center, adjacent_supervoxel_centers, ss.str(), viewer, v2);
                 //now change the color of the new shape
-                viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 1, 1, 0, ss.str(), v2);
+                viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 0, 0, 1, ss.str(), v2);
             }
         }
     }
@@ -1472,7 +1498,8 @@ void ShapeAnalyzer::generate_angles_components_structures(int node_id){
 
     //loop through the angles in the possible angle set
     std::set<int> node_angles=possible_angles.at(node_id);
-    if(node_id == 114)
+    if (false)
+    //if(node_id == 114)
         std::cout<<" +++++ 114 set size: "<<possible_angles.size()<<std::endl;
     std::vector<int> all_angle_components;
     //the std::set is ordered from low to high (lucky us)
@@ -1505,7 +1532,8 @@ void ShapeAnalyzer::generate_angles_components_structures(int node_id){
             //add the angles obtained so far to the structure
             //node_angle_to_connected_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>*>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
             all_angle_components.push_back(angle_component);
-            if(node_id == 114)
+            if (false)
+            //if(node_id == 114)
                 std::cout<<"++++++ 114 inserting component: "<<angle_component<<" of size: "<<component_angles_subset.size()<<std::endl;
             node_component_to_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
             //advance the component
@@ -1523,13 +1551,15 @@ void ShapeAnalyzer::generate_angles_components_structures(int node_id){
     //check if the last component is connected to the first one (last angle 360-angle jump and first angle 0)
     int last_angle=prev_angle;
     if(angle_component>0 &&first_angle==0 && last_angle==(360 - angle_jump)){
-        if(node_id == 114)
+        if (false)
+        //if(node_id == 114)
             std::cout<<"merging"<<std::endl;
         //instead of adding this additional component, merge the current set with the first one
         std::set<int> first_subset=node_component_to_angles_subset.at(std::pair<int, int>(node_id, 0));
         std::set<int> union_set;
         std::set_union(first_subset.begin(), first_subset.end(), component_angles_subset.begin(), component_angles_subset.end(), std::inserter(union_set, union_set.begin()));
-        if(node_id == 114)
+        if (false)
+        //if(node_id == 114)
             std::cout<<"    inserting component: "<<angle_component<<" of size: "<<union_set.size()<<std::endl;
         node_component_to_angles_subset.erase(std::pair<int, int>(node_id, 0));
         node_component_to_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>>(std::pair<int, int>(node_id, 0), union_set));
@@ -1545,7 +1575,8 @@ void ShapeAnalyzer::generate_angles_components_structures(int node_id){
     //add the last component
     //node_angle_to_connected_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
     all_angle_components.push_back(angle_component);
-    if(node_id == 114)
+    if (false)
+    //if(node_id == 114)
         std::cout<<"    +++inserting component: "<<angle_component<<" of size: "<<component_angles_subset.size()<<std::endl;
     node_component_to_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
 
@@ -1935,8 +1966,8 @@ void ShapeAnalyzer::compute_extended_path(int finger_id){
         p2Scaled.y=point2.y/1000.0;
         p2Scaled.z=point2.z/1000.0;
         translation_sequence.push_back(p2Scaled);
-        viewer->addLine(point1, point2, 0, 1, 0, "line "+std::to_string(count));
-        viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 2, "line "+std::to_string(count));
+        viewer->addLine(point1, point2, 0, 0, 1, "line "+std::to_string(count));
+        viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 5, "line "+std::to_string(count));
         count++;
         //std::cout<<"line drawn: "<<count<<std::endl;
         point1=point2;
