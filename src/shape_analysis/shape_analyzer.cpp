@@ -12,6 +12,8 @@
 #include <pcl/filters/passthrough.h>
 #include <pcl/PolygonMesh.h>
 #include <pcl/io/vtk_lib_io.h>
+#include <stdlib.h>
+#include <time.h>  
 
 
 using namespace shape_analysis;
@@ -55,7 +57,7 @@ void ShapeAnalyzer::set_object_from_pointcloud(std::string file_name){
     viewer->setBackgroundColor(1, 1, 1, v);
     viewer->initCameraParameters();
     pcl::PolygonMesh meshfile;
-    pcl::io::loadPolygonFileSTL("/home/silvia/catkin_ws/src/shape_analysis/shapes/shape6.stl", meshfile);
+    pcl::io::loadPolygonFileSTL("/home/silvia/catkin_ws/src/shape_analysis/shapes/shape7.stl", meshfile);
 
     vtkSmartPointer<vtkPolyData> colorable_shape;
     pcl::io::mesh2vtk(meshfile, colorable_shape);
@@ -68,11 +70,16 @@ void ShapeAnalyzer::set_object_from_pointcloud(std::string file_name){
 
     int vv(0);
     v = vv;
+    int vvv(0);
+    v3=vvv;
 
 
     v1=v;
-    //viewer->createViewPort (0.33, 0.0, 0.66, 1.0, v1);
+    //viewer->createViewPort (0.25, 0.0, 0.5, 1.0, v1);
     //viewer->setBackgroundColor(1, 1, 1, v1);
+
+    //viewer->createViewPort (0.5, 0.0, 0.75, 1.0, v3);
+    //viewer->setBackgroundColor (1, 1, 1, v3);
     //viewer->addCoordinateSystem(15.0);
     //viewer->initCameraParameters();
     //viewer->addText ("supervoxels and adjacency", 10, 10, "v1 text", v1);
@@ -142,15 +149,15 @@ void ShapeAnalyzer::get_supervoxels(){
     voxel_centroid_cloud=super.getVoxelCentroidCloud();
     std::cout<<"VoxelCentroidCloud size: "<<voxel_centroid_cloud->points.size()<<std::endl;
 
-    /*viewer->addPointCloud (voxel_centroid_cloud, "voxel centroids", v1);
-    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, "voxel centroids");
-    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_OPACITY, 0.95, "voxel centroids");*/
+    //viewer->addPointCloud (voxel_centroid_cloud, "voxel centroids", v1);
+    //viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, "voxel centroids");
+    //viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_OPACITY, 0.95, "voxel centroids");
 
     labeled_voxel_cloud = super.getLabeledVoxelCloud ();
-    /*
-    viewer->addPointCloud (labeled_voxel_cloud, "labeled voxels", v1);
-    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, "labeled voxels");
-    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_OPACITY,0.8, "labeled voxels");*/
+    
+    //viewer->addPointCloud (labeled_voxel_cloud, "labeled voxels", v1);
+    //viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, "labeled voxels");
+    //viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_OPACITY,0.8, "labeled voxels");
 
     //get the normals
     sv_normal_cloud = super.makeSupervoxelNormalCloud (supervoxel_clusters);
@@ -221,8 +228,9 @@ void ShapeAnalyzer::get_supervoxels(){
         std::stringstream ss;
         ss << "supervoxel_" << supervoxel_label;
         //This function is shown below, but is beyond the scope of this tutorial - basically it just generates a "star" polygon mesh from the points given
-        /*addSupervoxelConnectionsToViewer (supervoxel->centroid_, adjacent_supervoxel_centers, ss.str (), viewer, v1);
-        viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 0, 0, 0, ss.str(), v1);*/
+        //addSupervoxelConnectionsToViewer (supervoxel->centroid_, adjacent_supervoxel_centers, ss.str (), viewer, v3);
+        //viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 0, 0, 0, ss.str(), v3);
+        //std::cout<<"adding supervoxels to view: "<<v3<<std::endl;
         //Move iterator forward to next label
         label_itr = supervoxel_adjacency.upper_bound (supervoxel_label);
     }
@@ -1102,9 +1110,18 @@ void ShapeAnalyzer::refine_adjacency(){
     std::cout<<"Refining the adjacency list according to the possible angles"<<std::endl;
     //at the same time, generate the map from node to angle to component and the map from node to angle to subset of angles in the same component
     //loop on all the connected components
+    srand (time(NULL));
     std::multimap<uint32_t, uint32_t> angles_refined_adjacency;
     std::multimap<std::pair<uint32_t, int>, std::pair<uint32_t, int>> angles_extended_adjacency;
     for(int component=0; component<=component_id; component++){
+        float R=float(rand()%11)/10.0;
+        float G=float(rand()%11)/10.0;
+        float B=float(rand()%11)/10.0;
+
+        std::cout<<"R: "<<R<<std::endl;
+        std::cout<<"G: "<<G<<std::endl;
+        std::cout<<"B: "<<B<<std::endl;
+        std::cout<<"----"<<std::endl;
         //get all the nodes in the component:
         std::set<uint32_t> nodes_set=connected_component_to_set_of_nodes.at(component);
         //now loop on all the nodes and check if their connections (or the node itself) have to be removed from the connected component
@@ -1179,7 +1196,8 @@ void ShapeAnalyzer::refine_adjacency(){
                 //This function is shown below, but is beyond the scope of this tutorial - basically it just generates a "star" polygon mesh from the points given
                 addSupervoxelConnectionsToViewer(node_center, adjacent_supervoxel_centers, ss.str(), viewer, v2);
                 //now change the color of the new shape
-                viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 0, 0, 1, ss.str(), v2);
+                viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, R, G, B, ss.str(), v2);
+                //viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 1, 0, 0, ss.str(), v2);
             }
         }
     }
@@ -1704,14 +1722,22 @@ std::pair<std::stack<std::pair<int, int>>, std::stack<int>> ShapeAnalyzer::get_e
         std::vector<int> angle_components=node_to_angle_components.at(node_id);
         //get all the angle components too
         for(int ii=0; ii<angle_components.size(); ii++){
-            Q.insert(count);
-            //std::cout<<"inserting: "<<i<<" "<<ii<<std::endl;
-            node_to_int_idx.insert(std::pair<std::pair<int, int>, int>(std::pair<int, int>(node_id, ii), count));
-            int_idx_to_node.insert(std::pair<int, std::pair<int, int>>(count, std::pair<int, int>(node_id, ii)));
-            dist.push_back(DBL_MAX);
-            dist_faked.push_back(DBL_MAX);
-            prev.push_back(-1);
-            count++;
+            //get only those in the same component! (the path exists)
+            try{
+                if(extended_nodes_to_connected_component.at(std::pair<int, int>(node_id, ii))==extended_nodes_to_connected_component.at(init_node)){
+                    Q.insert(count);
+                    std::cout<<"inserting: "<<node_id<<" "<<ii<<std::endl;
+                    node_to_int_idx.insert(std::pair<std::pair<int, int>, int>(std::pair<int, int>(node_id, ii), count));
+                    int_idx_to_node.insert(std::pair<int, std::pair<int, int>>(count, std::pair<int, int>(node_id, ii)));
+                    dist.push_back(DBL_MAX);
+                    dist_faked.push_back(DBL_MAX);
+                    prev.push_back(-1);
+                    count++;
+                }
+            }
+            catch(std::out_of_range e){
+                std::cout<<"ERROR: looking for extended node: "<<node_id<<" "<<ii<<" , but it is not in map."<<std::endl;
+            }
         }
     }
 
@@ -1725,6 +1751,7 @@ std::pair<std::stack<std::pair<int, int>>, std::stack<int>> ShapeAnalyzer::get_e
     std::pair<int, int> u_node;
     std::stack<int> S;
     std::stack<std::pair<int, int>> S_node;
+    std::vector<int> deleted_indexes;
     //iterate over the vertices
     while(Q.size()>0){
         //std::cout<<"=========================================================================== size: "<<Q.size()<<std::endl;
@@ -1732,10 +1759,18 @@ std::pair<std::stack<std::pair<int, int>>, std::stack<int>> ShapeAnalyzer::get_e
         std::vector<double>::iterator it=std::min_element(std::begin(dist_faked), std::end(dist_faked)); 
         u=std::distance(std::begin(dist_faked), it);
         u_node=int_idx_to_node.at(u);
+        //check if this element had already been removed. If so, it means the path cannot be found
+        if(std::find(deleted_indexes.begin(), deleted_indexes.end(),u)!=deleted_indexes.end()){
+            std::cout<<"the desired path is invalid for contact-free secondary finger!"<<std::endl;
+            //empty the queue
+            Q.clear();
+            break;
+        }
         //remove this element from Q
         Q.erase(u);
-        dist_faked[u]=DBL_MAX; //this is to look for shortest distance of elements still in Q
-        //std::cout<<"current vertex: "<<u<<std::endl;
+        deleted_indexes.push_back(u);
+        dist_faked[u]=DBL_MAX-1.0; //this is to look for shortest distance of elements still in Q
+        std::cout<<"current vertex: "<<u<<std::endl;
         //check if the element found is the goal
 
         if(u_node!=goal_node){
@@ -1758,11 +1793,11 @@ std::pair<std::stack<std::pair<int, int>>, std::stack<int>> ShapeAnalyzer::get_e
                         Eigen::Vector3f intersection_point=alpha*grasp_line+l0;
                         //std::cout<<"CCCCCC"<<std::endl;    
                         //now find the nearest centroid to this point, and check if it belongs to the same connected component(be sure to check that this node IS associaded to a component first)
-                        int K = 3;//three nearest neighbours
+                        int K = 1;//three nearest neighbours
                         std::vector<int> pointIdxNKNSearch(K);
                         std::vector<float> pointNKNSquaredDistance(K);
                         //improve this distance according to the change in normal (TO DO)
-                        double slave_dist=100;
+                        double slave_dist=DBL_MAX-100.0;
                         pcl::PointXYZRGBA input;
                         input.x=intersection_point(0);
                         input.y=intersection_point(1);

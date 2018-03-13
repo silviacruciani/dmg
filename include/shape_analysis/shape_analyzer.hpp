@@ -68,7 +68,7 @@ namespace shape_analysis{
             double l_finger;
             pcl::PointCloud<pcl::PointXYZ>::Ptr object_shape;
             pcl::visualization::PCLVisualizer *viewer;
-            int v1, v2; //viewports
+            int v1, v2, v3; //viewports
             std::map <uint32_t, pcl::Supervoxel<pcl::PointXYZRGBA>::Ptr > supervoxel_clusters;
             pcl::PointCloud<pcl::PointXYZRGBA>::Ptr voxel_centroid_cloud;
             pcl::PointCloud<pcl::PointXYZL>::Ptr labeled_voxel_cloud;
