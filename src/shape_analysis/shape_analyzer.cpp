@@ -40,6 +40,7 @@ void ShapeAnalyzer::set_object_from_pointcloud(std::string file_name){
     if ( pcl::io::loadPCDFile(file_name, *in_cloud)<0){
         std::cout<<"Error loading model cloud."<<std::endl;
     }
+    object_name=file_name;
     object_shape=in_cloud;
     
 

@@ -65,6 +65,8 @@ namespace shape_analysis{
             void generate_connected_components_list_of_extended_refined_adjacency();
             std::pair<std::pair<int, int>, std::pair<int, int>> get_int_angles(int finger_id);
             
+            std::string object_name;
+
             double l_finger;
             pcl::PointCloud<pcl::PointXYZ>::Ptr object_shape;
             pcl::visualization::PCLVisualizer *viewer;

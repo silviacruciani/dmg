@@ -13,12 +13,12 @@
 #include "ros/ros.h"
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
-#include <cstddef>
+#include "shape_analysis/RayTracing.h"
 
 namespace shape_analysis{
     class ExtendedDMG : public ShapeAnalyzer{
     public:
-        ExtendedDMG();
+        ExtendedDMG(ros::NodeHandle n);
         ~ExtendedDMG();
 
         /**
@@ -50,14 +50,32 @@ namespace shape_analysis{
             Returns the distance between the fingers during the translations.
             @return 3 distance sequences corresponding to the 3 translation sequences.
         */
-        std::vector<std::vector<double>> get_distance_sequence(); 
+        std::vector<std::vector<double>> get_distance_sequence();
+
+        /**
+            sets the name used for the ray tracing service.
+            @param the name of the service.
+        */
+        void set_ray_tracing_service_name(std::string name);
+
 
     private:
+        /**
+            Get the intersection from a ray caster server.
+            @return a vector with all the intersections, ordered from the closest to the starting point onwards.
+        */
+        std::vector<Eigen::Vector3f> get_ray_intersections(Eigen::Vector3f start, Eigen::Vector3f end);
+
+
         //regrasp 1st gripper, regrasp 2nd gripper
         Eigen::Vector3f regrasp1, regrasp2;
         std::vector<std::vector<geometry_msgs::Point>> r_translations;
         std::vector<std::vector<double>> r_rotations;
         std::vector<std::vector<double>> r_finger_distances;
+
+        std::string ray_tracing_service_name;
+        ros::NodeHandle node_handle;
+        ros::ServiceClient ray_tracing_client;
         
     };
 }
