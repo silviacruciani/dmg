@@ -1,0 +1,10 @@
+#This contains the intersections between a mesh and a ray
+#the inputs are the mesh name and the 2 points of beginning and ending of the ray
+
+#the output is a vector of 3D points, which are the intersections
+
+string mesh_name
+geometry_msgs/Point start_point
+geometry_msgs/Point end_point
+---
+geometry_msgs/Point[] intersections

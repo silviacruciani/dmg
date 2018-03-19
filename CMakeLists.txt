@@ -62,6 +62,7 @@ find_package(PCL 1.8 REQUIRED)
  add_service_files(
    FILES
    InHandPath.srv
+   RayTracing.srv
 #   Service1.srv
 #   Service2.srv
  )
