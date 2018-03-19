@@ -40,7 +40,7 @@ namespace shape_analysis{
             void set_initial_contact(geometry_msgs::Point p, geometry_msgs::Quaternion q, int finger_id);
             void set_desired_contact(geometry_msgs::Point p, geometry_msgs::Quaternion q, int finger_id);
             void compute_path(int finger_id);
-            void compute_extended_path(int finger_id);
+            bool compute_extended_path(int finger_id);
             void set_finger_length(double l);
             void refine_adjacency(); //this checks for simple collisions with the gripper
             void set_supervoxel_parameters(float voxel_res, float seed_res, float color_imp, float spatial_imp, float normal_imp, bool disable_transf, int refinement_its);
@@ -48,7 +48,7 @@ namespace shape_analysis{
             std::vector<double> get_angle_sequence();
             std::vector<double> get_distance_sequence();
 
-        private:
+        protected:
             void addSupervoxelConnectionsToViewer(pcl::PointXYZRGBA &supervoxel_center,
                                   pcl::PointCloud<pcl::PointXYZRGBA> &adjacent_supervoxel_centers,
                                   std::string supervoxel_name,

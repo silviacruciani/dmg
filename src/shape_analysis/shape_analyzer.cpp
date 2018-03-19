@@ -1890,7 +1890,8 @@ std::pair<std::stack<std::pair<int, int>>, std::stack<int>> ShapeAnalyzer::get_e
     return std::pair<std::stack<std::pair<int, int>>, std::stack<int>>(S_node, S);
 }
 
-void ShapeAnalyzer::compute_extended_path(int finger_id){
+//return false if the path requires regrasping
+bool ShapeAnalyzer::compute_extended_path(int finger_id){
     //first of all, clear the previously drawn path and delete the previous translation sequence
     int max_line_id=translation_sequence.size()-1;
     translation_sequence = std::vector<geometry_msgs::Point>();
@@ -1919,14 +1920,14 @@ void ShapeAnalyzer::compute_extended_path(int finger_id){
     //std::cout<<"diff norm: "<<(grasp_line-desired_grasp_line).norm()<<std::endl;
     if(fabs((grasp_line-desired_grasp_line).norm())>0.3){
         std::cout<<"Wrong final pose. Rotation around different axes could be required."<<std::endl;
-        return;
+        return false;
     }
 
     //compute the initial and final angles
     std::pair<std::pair<int, int>, std::pair<int, int>> int_angles=get_int_angles(finger_id);
     if(int_angles.first.first==-1){
         std::cout<<"Unachievable desired path"<<std::endl;
-        return;
+        return false;
     }
 
     std::stack<std::pair<int, int>> S_extended;
@@ -1950,7 +1951,7 @@ void ShapeAnalyzer::compute_extended_path(int finger_id){
 
 
     if(S.size()<1){
-        return;
+        return false;
     }
 
     //then draw the lines to highligt the path and store the points to keep track of the necessary translations
@@ -2014,6 +2015,7 @@ void ShapeAnalyzer::compute_extended_path(int finger_id){
     compute_extended_angle_sequence(path_extended, finger_id, int_angles.first.first, int_angles.first.second); 
     //compute distance sequence
     compute_contact_distances(path);
+    return true;
 }
 
 std::pair<std::pair<int, int>, std::pair<int, int>> ShapeAnalyzer::get_int_angles(int finger_id){
