@@ -1,4 +1,5 @@
 #This contains the intersections between a mesh and a ray
+#This contains the intersections between a mesh and a ray
 #the inputs are the mesh name and the 2 points of beginning and ending of the ray
 
 #the output is a vector of 3D points, which are the intersections

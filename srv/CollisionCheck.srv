@@ -1,0 +1,12 @@
+#This checks the collision between a mesh and a rectangle (4 points)
+#the inputs are the mesh name and the 4 vertices of the rectangle
+
+#the output is a boolean, true for collision
+
+string mesh_name
+geometry_msgs/Point v1
+geometry_msgs/Point v2
+geometry_msgs/Point v3
+geometry_msgs/Point v4
+---
+bool collision

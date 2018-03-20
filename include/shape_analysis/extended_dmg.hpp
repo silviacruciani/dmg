@@ -29,10 +29,10 @@ namespace shape_analysis{
         int compute_extended_path(int finger_id);
 
         /**
-            Returns the two grasp points, for the second gripper and the first gripper.
-            @return a std::pair with two Eigen::Vector3f in the object's reference frame.
+            Returns the two grasp points, for the second gripper and the first gripper in this order.
+            @return two std::pair with two Eigen::Vector3f in the object's reference frame.
         */
-        std::pair<Eigen::Vector3f, Eigen::Vector3f> get_regrasp_points();
+        std::pair<std::pair<Eigen::Vector3f, Eigen::Vector3f>, std::pair<Eigen::Vector3f, Eigen::Vector3f>> get_regrasp_points();
 
         /**
             Returns all the necessary translations for the contact points.
@@ -61,14 +61,21 @@ namespace shape_analysis{
 
     private:
         /**
-            Get the intersection from a ray caster server.
+            Gets the intersection from a ray caster server.
             @return a vector with all the intersections, ordered from the closest to the starting point onwards.
         */
         std::vector<Eigen::Vector3f> get_ray_intersections(Eigen::Vector3f start, Eigen::Vector3f end);
 
+        /**
+            Finds a set of available regrasping points close to the given contact and keeps the translations and rotations to 
+            connect them to the desired grasp
+        */
+        void find_available_regrasping_points(Eigen::Vector3f principal_contact, Eigen::Vector3f secondary_contact, bool desired_angle);
+
 
         //regrasp 1st gripper, regrasp 2nd gripper
-        Eigen::Vector3f regrasp1, regrasp2;
+        Eigen::Vector3f regrasp1_principal, regrasp2_principal; //for the principal contact point
+        Eigen::Vector3f regrasp1_secondary, regrasp2_secondary; //for the secondary contact point
         std::vector<std::vector<geometry_msgs::Point>> r_translations;
         std::vector<std::vector<double>> r_rotations;
         std::vector<std::vector<double>> r_finger_distances;

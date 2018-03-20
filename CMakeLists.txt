@@ -63,6 +63,7 @@ find_package(PCL 1.8 REQUIRED)
    FILES
    InHandPath.srv
    RayTracing.srv
+   CollisionCheck.srv
 #   Service1.srv
 #   Service2.srv
  )
