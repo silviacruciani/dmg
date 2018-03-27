@@ -1,7 +1,7 @@
 #!/usr/bin/python2
 
 """
-    This file contains a server to check the collision between a polygon and the object
+    This file contains a server to check the collision between a polygon (4 vertices) and the object
 
     @author: Silvia Cruciani (cruciani@kth.se)
 """

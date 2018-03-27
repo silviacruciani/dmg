@@ -9,17 +9,29 @@
 
 using namespace shape_analysis;
 
+//helper functions 
+Eigen::Matrix3f axis_angle_matrix(Eigen::Vector3f axis, double theta);
+
 ExtendedDMG::ExtendedDMG(ros::NodeHandle n) : ShapeAnalyzer(){
     r_translations=std::vector<std::vector<geometry_msgs::Point>>(3);
     r_rotations=std::vector<std::vector<double>>(3);
     r_finger_distances=std::vector<std::vector<double>>(3);
     ray_tracing_service_name="ray_tracing";
+    angle_collision_service_name="collision_check";
     node_handle=n;
+
     ray_tracing_client=node_handle.serviceClient<RayTracing>(ray_tracing_service_name);
     bool active=ros::service::waitForService(ray_tracing_service_name, 1);
     if(!active){
         std::cout<<"No service named "<<ray_tracing_service_name<<" available"<<std::endl;
     }
+
+    angle_collision_client=node_handle.serviceClient<CollisionCheck>(angle_collision_service_name);
+    active=ros::service::waitForService(angle_collision_service_name, 1);
+    if(!active){
+        std::cout<<"No service named "<<angle_collision_service_name<<" available"<<std::endl;
+    }
+
 }
 
 ExtendedDMG::~ExtendedDMG(){
@@ -77,7 +89,11 @@ int ExtendedDMG::compute_extended_path(int finger_id){
 
     //if it is possible to directly regrasp, then we are happy and we can fill the last sequence with empty vectors
     //otherwise, we should propagate backwards in the DMG to find a proper regrasping area
-    if(direct_regrasp_1){   
+    if(direct_regrasp_1){
+        //collision check with the desired angle: check if the desired angle is reachable
+
+
+
         r_rotations[2]=std::vector<double>();
         r_finger_distances[2]=std::vector<double>();
         r_translations[2]=std::vector<geometry_msgs::Point>();
@@ -122,6 +138,15 @@ void ExtendedDMG::set_ray_tracing_service_name(std::string name){
     }
 }
 
+void ExtendedDMG::set_angle_collision_service_name(std::string name){
+    angle_collision_service_name=name;
+    angle_collision_client=node_handle.serviceClient<CollisionCheck>(angle_collision_service_name);
+    bool active=ros::service::waitForService(angle_collision_service_name, 1);
+    if(!active){
+        std::cout<<"No service named "<<angle_collision_service_name<<" available"<<std::endl;
+    }
+}
+
 std::vector<Eigen::Vector3f> ExtendedDMG::get_ray_intersections(Eigen::Vector3f start, Eigen::Vector3f end){
     //rewrite the data in ros formats
     geometry_msgs::Point start_point;
@@ -162,10 +187,143 @@ std::vector<Eigen::Vector3f> ExtendedDMG::get_ray_intersections(Eigen::Vector3f 
 
 }
 
+bool ExtendedDMG::is_in_collision(Eigen::Vector3f contact, double angle){
+    //get the normal to the surface at the contact point
+    Eigen::Vector3f normal=get_normal_at_contact(contact);
+    //get two points on the vertical line, raised a bit to not be in collision with the contact surface
+    Eigen::Vector3f p1, p2, p3, p4;
+    double delta1=2.0; //2mm
+    double delta2=12.0;
+    p1=contact+delta1*normal;
+    p2=contact+delta2*normal;
+
+    //now get the other two points given the angle
+    Eigen::Vector3f zero_axis=get_zero_angle_direction(contact);
+    //rotate this axis of angle around the normal
+    Eigen::Matrix3f R_axis_angle=axis_angle_matrix(normal, angle);
+    Eigen::Vector3f direction=R_axis_angle*zero_axis; //double check if it is correct
+    p3=contact+l_finger*direction + delta2*normal;
+    p4=contact+l_finger*direction + delta1*normal;
+
+    //now do the service call!
+    geometry_msgs::Point point1, point2, point3, point4;
+
+    point1.x=p1(0);
+    point1.y=p1(1);
+    point1.z=p1(2);
+
+    point2.x=p2(0);
+    point2.y=p2(1);
+    point2.z=p2(2);
+
+    point3.x=p3(0);
+    point3.y=p3(1);
+    point3.z=p3(2);
+
+    point4.x=p4(0);
+    point4.y=p4(1);
+    point4.z=p4(2);
+
+    //get the mesh name from the object's name
+    std::string name=object_name.substr(0, object_name.find("_"))+".stl";
+
+    CollisionCheck srv;
+    srv.request.mesh_name=name;
+    srv.request.v1=point1;
+    srv.request.v2=point2;
+    srv.request.v3=point3;
+    srv.request.v4=point4;
+
+    //call the server
+    if(angle_collision_client.call(srv)){
+        return srv.response.collision;
+    }
+
+    ROS_ERROR("Failed to call the service %s", angle_collision_service_name.c_str());
+
+    //assume collision
+    return true;
+}
+
 void ExtendedDMG::find_available_regrasping_points(Eigen::Vector3f principal_contact, Eigen::Vector3f secondary_contact, bool desired_angle){
     //get the grasp line first (to check for the secondary finger following the principal finger)
     Eigen::Vector3f line=secondary_contact-principal_contact;
     //get the closest node to the principal contact point
 }
 
+int ExtendedDMG::get_supervoxel_index(Eigen::Vector3f contact){
+    //put the contact in pcl point
+    pcl::PointXYZRGBA input;
+    input.x=contact(0);
+    input.y=contact(1);
+    input.z=contact(2);
 
+    //now start searching for the nearest neighbor
+    int K=1;
+
+    std::vector<int> pointIdxNKNSearch(K);
+    std::vector<float> pointNKNSquaredDistance(K);
+
+    double min_dist=DBL_MAX;
+    int min_dist_idx=-1;
+    if (centroids_kdtree.nearestKSearch(input, K, pointIdxNKNSearch, pointNKNSquaredDistance)> 0){
+        return pointIdxNKNSearch[0]; //the first and only found index is the nearest neighbor
+    }
+    else{
+        std::cout<<"No neighbour found."<<std::endl;
+        return -1;
+    }
+}
+
+Eigen::Vector3f ExtendedDMG::get_normal_at_contact(Eigen::Vector3f contact){
+    //get the index of the supervoxel
+    int idx=get_supervoxel_index(contact);
+    //get the normal of that supervoxel
+    pcl::Normal n=all_normals_clouds->at(idx);
+    //convert it into a Vector3f
+    Eigen::Vector3f normal(n.normal_x, n.normal_y, n.normal_z);
+    return normal;
+}
+
+Eigen::Vector3f ExtendedDMG::get_zero_angle_direction(Eigen::Vector3f contact){
+    Eigen::Vector3f nx=component_to_average_normal.at(get_supervoxel_index(contact));
+    Eigen::Vector3f ny; //ny is the axis at which the angle is 0, for all the nodes
+    if(fabs(nx(0))>0.00000001){
+        ny(1)=0;
+        ny(2)=sqrt(nx(0)*nx(0)/(nx(0)*nx(0)+nx(2)*nx(2)));
+        ny(0)=-nx(2)*ny(2)/nx(0);
+    }
+    else if(fabs(nx(1))>0.00000001){
+        ny(2)=0;
+        ny(0)=sqrt(nx(1)*nx(1)/(nx(1)*nx(1)+nx(0)*nx(0)));
+        ny(1)=-ny(0)*nx(0)/nx(1);
+    }
+    else{
+        ny(0)=0;
+        ny(1)=sqrt(nx(2)*nx(2)/(nx(1)*nx(1)+nx(2)*nx(2)));
+        ny(2)=-nx(1)*ny(1)/nx(2);
+    }
+    return ny;
+}
+
+/**
+    Obtains the rotation matrix of the rotation around the axis of a given angle
+    @param axis the axis around which the rotation is done
+    @param theta the angle of the rotation
+    @return the rotation matrix
+*/
+Eigen::Matrix3f axis_angle_matrix(Eigen::Vector3f axis, double theta){
+    Eigen::Matrix3f R;
+    double x=axis(0);
+    double y=axis(1);
+    double z=axis(2);
+
+    double cos_th=cos(theta);
+    double sin_th=sin(theta);
+
+    R<< cos_th + x*x * (1-cos_th), x*y* (1-cos_th) - z*sin_th, x*z* (1-cos_th) + y*sin_th,
+        y*x* (1-cos_th) + z*sin_th, cos_th + y*y* (1-cos_th), y*z* (1-cos_th) - x*sin_th,
+        z*x* (1-cos_th) - y*sin_th, z*y* (1-cos_th) + x*sin_th, cos_th + z*z* (1-cos_th);
+
+    return R;
+}

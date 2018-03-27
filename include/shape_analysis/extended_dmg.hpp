@@ -14,6 +14,7 @@
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
 #include "shape_analysis/RayTracing.h"
+#include "shape_analysis/CollisionCheck.h"
 
 namespace shape_analysis{
     class ExtendedDMG : public ShapeAnalyzer{
@@ -56,12 +57,22 @@ namespace shape_analysis{
             sets the name used for the ray tracing service.
             @param the name of the service.
         */
-        void set_ray_tracing_service_name(std::string name);
+        void set_ray_tracing_service_name(std::string name);        
+
+        /**
+            sets the name used for the angle collision check service.
+            @param the name of the service.
+        */
+        void set_angle_collision_service_name(std::string name);
+
+
 
 
     private:
         /**
             Gets the intersection from a ray caster server.
+            @param start the Vector3f start point of the ray
+            @param end the Vector3f end point of the ray
             @return a vector with all the intersections, ordered from the closest to the starting point onwards.
         */
         std::vector<Eigen::Vector3f> get_ray_intersections(Eigen::Vector3f start, Eigen::Vector3f end);
@@ -69,8 +80,41 @@ namespace shape_analysis{
         /**
             Finds a set of available regrasping points close to the given contact and keeps the translations and rotations to 
             connect them to the desired grasp
+            @param principal_contact the contact point of the principal finger
+            @param secondary_contact the contact point of the secondary finger
+            @param desired_angle if the angle to be checked is the desired one or not
         */
         void find_available_regrasping_points(Eigen::Vector3f principal_contact, Eigen::Vector3f secondary_contact, bool desired_angle);
+
+
+        /**
+            Checks if the finger is in collision in that point with the given angle
+            @param contact the finger contact point
+            @param angle the finger's angle
+            @return true if there is collision, false otherwise
+        */
+        bool is_in_collision(Eigen::Vector3f contact, double angle);
+
+        /**
+            Obtains the supervoxel centroid closest to the contact
+            @param contact the finger contact point
+            @return the supervoxel index
+        */
+        int get_supervoxel_index(Eigen::Vector3f contact);
+
+        /**
+            Gets the normal vector of the surface in contact
+            @param contact the contact point
+            @return the normal vector
+        */
+        Eigen::Vector3f get_normal_at_contact(Eigen::Vector3f contact);
+
+        /**
+            Gets the direction of the y axis in the connected component, which is the one at which the angle is 0
+            @param contact the finger contact point
+            @return the axis vector
+        */
+        Eigen::Vector3f get_zero_angle_direction(Eigen::Vector3f contact);
 
 
         //regrasp 1st gripper, regrasp 2nd gripper
@@ -81,8 +125,10 @@ namespace shape_analysis{
         std::vector<std::vector<double>> r_finger_distances;
 
         std::string ray_tracing_service_name;
+        std::string angle_collision_service_name;
         ros::NodeHandle node_handle;
         ros::ServiceClient ray_tracing_client;
+        ros::ServiceClient angle_collision_client;
         
     };
 }
