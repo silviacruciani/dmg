@@ -86,26 +86,54 @@ int ExtendedDMG::compute_extended_path(int finger_id){
     //in both cases, it is assumed that the desired angle is an angle at which the gripper can grasp the object
     //TO DO: add a collision check with the desired angle given the max range of opening fingers to see if in between there is any collision 
     //with the whole finger, not just at the fingertip
+    bool angle_in_collision=false;
 
     //if it is possible to directly regrasp, then we are happy and we can fill the last sequence with empty vectors
     //otherwise, we should propagate backwards in the DMG to find a proper regrasping area
     if(direct_regrasp_1){
+        //get the connected component of the desired contact
+        int initial_contact_cc;
+        Eigen::Quaternion<float> q;
+        if(finger_id==1){
+            initial_contact_cc=nodes_to_connected_component.at(initial_centroid_idx_1);
+            q=Eigen::Quaternion<float>(initial_pose_1(6), initial_pose_1(3), initial_pose_1(4), initial_pose_1(5));
+        }
+        else{
+            initial_contact_cc=nodes_to_connected_component.at(initial_centroid_idx_2);
+            q=Eigen::Quaternion<float>(initial_pose_2(6), initial_pose_2(3), initial_pose_2(4), initial_pose_2(5));
+        }
+
+
         //collision check with the desired angle: check if the desired angle is reachable
+        int desired_angle=pose_to_angle(q, initial_contact_cc);
+        angle_in_collision=is_in_collision(contact_point1, double(desired_angle)*M_PI/180.0);
+        if (!angle_in_collision){
+            //check if the slave finger is also not in collision
+            if(finger_id==1){
+                initial_contact_cc=nodes_to_connected_component.at(initial_centroid_idx_2);
+                q=Eigen::Quaternion<float>(initial_pose_2(6), initial_pose_2(3), initial_pose_2(4), initial_pose_2(5));
+            }
+            else{
+                initial_contact_cc=nodes_to_connected_component.at(initial_centroid_idx_1);
+                q=Eigen::Quaternion<float>(initial_pose_1(6), initial_pose_1(3), initial_pose_1(4), initial_pose_1(5));
+            }
+            desired_angle=pose_to_angle(q, initial_contact_cc);
+            angle_in_collision=is_in_collision(contact_point1, double(desired_angle)*M_PI/180.0);
+        }
 
-
-
-        r_rotations[2]=std::vector<double>();
-        r_finger_distances[2]=std::vector<double>();
-        r_translations[2]=std::vector<geometry_msgs::Point>();
-        //the regrasp of the 1st gripper is exactly the desired grasp
-        regrasp1_principal=contact_point1;
-        regrasp1_secondary=contact_point2;
+        if(!angle_in_collision){
+            //this is the best case
+            r_rotations[2]=std::vector<double>();
+            r_finger_distances[2]=std::vector<double>();
+            r_translations[2]=std::vector<geometry_msgs::Point>();
+            //the regrasp of the 1st gripper is exactly the desired grasp
+            regrasp1_principal=contact_point1;
+            regrasp1_secondary=contact_point2;
+            return 1;
+        }
     }
-    else{
-        //for now, it is assumed that the 
-        find_available_regrasping_points(contact_point1, contact_point2, true);
-    }
-
+    
+    find_available_regrasping_points(contact_point1, contact_point2);
 
     return 1;
 }
@@ -245,7 +273,7 @@ bool ExtendedDMG::is_in_collision(Eigen::Vector3f contact, double angle){
     return true;
 }
 
-void ExtendedDMG::find_available_regrasping_points(Eigen::Vector3f principal_contact, Eigen::Vector3f secondary_contact, bool desired_angle){
+void ExtendedDMG::find_available_regrasping_points(Eigen::Vector3f principal_contact, Eigen::Vector3f secondary_contact){
     //get the grasp line first (to check for the secondary finger following the principal finger)
     Eigen::Vector3f line=secondary_contact-principal_contact;
     //get the closest node to the principal contact point
@@ -267,7 +295,7 @@ int ExtendedDMG::get_supervoxel_index(Eigen::Vector3f contact){
     double min_dist=DBL_MAX;
     int min_dist_idx=-1;
     if (centroids_kdtree.nearestKSearch(input, K, pointIdxNKNSearch, pointNKNSquaredDistance)> 0){
-        return pointIdxNKNSearch[0]; //the first and only found index is the nearest neighbor
+        return int(pc_to_supervoxel_idx.at(pointIdxNKNSearch[0])); //the first and only found index is the nearest neighbor
     }
     else{
         std::cout<<"No neighbour found."<<std::endl;
@@ -278,16 +306,19 @@ int ExtendedDMG::get_supervoxel_index(Eigen::Vector3f contact){
 Eigen::Vector3f ExtendedDMG::get_normal_at_contact(Eigen::Vector3f contact){
     //get the index of the supervoxel
     int idx=get_supervoxel_index(contact);
-    //get the normal of that supervoxel
-    pcl::Normal n=all_normals_clouds->at(idx);
-    //convert it into a Vector3f
-    Eigen::Vector3f normal(n.normal_x, n.normal_y, n.normal_z);
+    //get the normal of that component
+    Eigen::Vector3f normal=component_to_average_normal.at(idx);
     return normal;
 }
 
 Eigen::Vector3f ExtendedDMG::get_zero_angle_direction(Eigen::Vector3f contact){
     Eigen::Vector3f nx=component_to_average_normal.at(get_supervoxel_index(contact));
-    Eigen::Vector3f ny; //ny is the axis at which the angle is 0, for all the nodes
+    Eigen::Vector3f ny=get_orthogonal_axis(nx); //ny is the axis at which the angle is 0, for all the nodes
+    return ny;
+}
+
+Eigen::Vector3f ExtendedDMG::get_orthogonal_axis(Eigen::Vector3f nx){
+    Eigen::Vector3f ny;
     if(fabs(nx(0))>0.00000001){
         ny(1)=0;
         ny(2)=sqrt(nx(0)*nx(0)/(nx(0)*nx(0)+nx(2)*nx(2)));
@@ -304,6 +335,52 @@ Eigen::Vector3f ExtendedDMG::get_zero_angle_direction(Eigen::Vector3f contact){
         ny(2)=-nx(1)*ny(1)/nx(2);
     }
     return ny;
+}
+
+int ExtendedDMG::pose_to_angle(Eigen::Quaternion<float> q, int component){
+    Eigen::Matrix3f pose_gripper=q.toRotationMatrix();
+    Eigen::Matrix3f pose_component=component_pose_matrix(component);
+
+    Eigen::Matrix3f gripper_to_component=pose_component.transpose()*pose_gripper;
+    Eigen::Vector3f x_prime=gripper_to_component.block<3, 1>(0, 0);
+    double angle=atan2(-x_prime(2), -x_prime(1));
+    int int_angle=filter_angle(angle);
+
+}
+
+Eigen::Matrix3f ExtendedDMG::component_pose_matrix(int component){
+    Eigen::Matrix3f component_matrix;
+
+    Eigen::Vector3f nx=component_to_average_normal.at(component);
+    Eigen::Vector3f ny=get_orthogonal_axis(nx);
+    Eigen::Vector3f nz=nx.cross(ny);
+
+    component_matrix(0,0)=nx(0);
+    component_matrix(1,0)=nx(1);
+    component_matrix(2,0)=nx(2);
+
+    component_matrix(0,1)=ny(0);
+    component_matrix(1,1)=ny(1);
+    component_matrix(2,1)=ny(2);
+
+    component_matrix(0,2)=nz(0);
+    component_matrix(1,2)=nz(1);
+    component_matrix(2,2)=nz(2);
+
+    return component_matrix;
+}
+
+int ExtendedDMG::filter_angle(double angle){
+    if (angle<0){
+        angle+=2*M_PI;
+    }
+    angle=angle*180.0/M_PI;
+    double round_angle=angle+angle_jump/2;
+    int int_angle=floor(round_angle);
+    if(int_angle==360){
+        int_angle=0;
+    }
+    return int_angle;
 }
 
 /**
@@ -327,3 +404,4 @@ Eigen::Matrix3f axis_angle_matrix(Eigen::Vector3f axis, double theta){
 
     return R;
 }
+

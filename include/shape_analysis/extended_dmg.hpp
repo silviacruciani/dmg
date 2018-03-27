@@ -82,9 +82,8 @@ namespace shape_analysis{
             connect them to the desired grasp
             @param principal_contact the contact point of the principal finger
             @param secondary_contact the contact point of the secondary finger
-            @param desired_angle if the angle to be checked is the desired one or not
         */
-        void find_available_regrasping_points(Eigen::Vector3f principal_contact, Eigen::Vector3f secondary_contact, bool desired_angle);
+        void find_available_regrasping_points(Eigen::Vector3f principal_contact, Eigen::Vector3f secondary_contact);
 
 
         /**
@@ -115,6 +114,35 @@ namespace shape_analysis{
             @return the axis vector
         */
         Eigen::Vector3f get_zero_angle_direction(Eigen::Vector3f contact);
+
+        /**
+            Get the corresponding angle for the given gripper pose
+            @param q the quaternion with the finger orientation
+            @param component the connected component of the contact point
+            @return the int angle (degrees)
+        */
+        int pose_to_angle(Eigen::Quaternion<float> q, int component);
+
+        /**
+            Finds the orientation of the frame of the connected components as rotation matrix
+            @param component the component index
+            @return the rotation matrix
+        */
+        Eigen::Matrix3f component_pose_matrix(int component);
+
+        /**
+            Converts the angle from radians to degrees in the given resolution
+            @param angle the angle in radians
+            @return the int angle in degrees
+        */
+        int filter_angle(double angle);
+
+        /**
+            finds an axis orthogonal to the given one
+            @param nx the input axis
+            @return the orthogonal axis
+        */
+        Eigen::Vector3f get_orthogonal_axis(Eigen::Vector3f nx);
 
 
         //regrasp 1st gripper, regrasp 2nd gripper
