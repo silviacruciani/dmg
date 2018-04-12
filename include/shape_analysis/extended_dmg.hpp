@@ -82,8 +82,11 @@ namespace shape_analysis{
             connect them to the desired grasp
             @param principal_contact the contact point of the principal finger
             @param secondary_contact the contact point of the secondary finger
+            @param principal_angle the angle of the finger in the principal connected component
+            @param secondary_angle the angle of the finger in the secondary connected component
+            @param gripper_id 0 for the first gripper, 1 for the second
         */
-        void find_available_regrasping_points(Eigen::Vector3f principal_contact, Eigen::Vector3f secondary_contact);
+        void find_available_regrasping_points(Eigen::Vector3f principal_contact, Eigen::Vector3f secondary_contact, int principal_angle, int secondary_angle, int gripper_id);
 
 
         /**
@@ -144,6 +147,14 @@ namespace shape_analysis{
         */
         Eigen::Vector3f get_orthogonal_axis(Eigen::Vector3f nx);
 
+        /**
+            Obtains the corresponding nodes of the secondary finger, given the principal finger, with the given direction (orientation) of the gripper
+            @param direction the line connecting the principal and secondary contact points
+            @param principal_node the node corresponding to the principal finger
+            @return a list with the opposite nodes for the secondary finger
+        */
+        std::list<std::pair<int, int>> get_opposite_finger_nodes(Eigen::Vector3f direction, std::pair<int, int> principal_node);
+
 
         //regrasp 1st gripper, regrasp 2nd gripper
         Eigen::Vector3f regrasp1_principal, regrasp2_principal; //for the principal contact point
@@ -151,6 +162,8 @@ namespace shape_analysis{
         std::vector<std::vector<geometry_msgs::Point>> r_translations;
         std::vector<std::vector<double>> r_rotations;
         std::vector<std::vector<double>> r_finger_distances;
+
+        std::vector<std::vector<std::pair<int, int>>> regrasping_candidate_nodes; //for the 1st and 2nd gripper, all the good nodes for regrasping (regrasp area)
 
         std::string ray_tracing_service_name;
         std::string angle_collision_service_name;
