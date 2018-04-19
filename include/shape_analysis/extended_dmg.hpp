@@ -155,6 +155,17 @@ namespace shape_analysis{
         */
         std::list<std::pair<int, int>> get_opposite_finger_nodes(Eigen::Vector3f direction, std::pair<int, int> principal_node);
 
+        /**
+            To each node in the graph, assigns a value according to the distance from the two grasping point of the first gripper
+            @param release_contact_1 the principal contact of the 1st gripper before releasing the object
+            @param release_contact_2 the secondary contact of the 1st gripper before releasing the object
+            @param regrasp_contact_1 the principal contact of the 1st gripper when regrasping
+            @param regrasp_contact_2 the secondary contact of the 1st gripper when regrasping
+            @return a mat from node to double containing how "good" a node is for the 2nd gripper regrasping. The bigger the value, the better.
+        */
+        std::map<int, double> weight_regrasping_area(Eigen::Vector3f release_contact_1, Eigen::Vector3f release_contact_2, Eigen::Vector3f regrasp_contact_1, Eigen::Vector3f regrasp_contact_2);
+
+
 
         //regrasp 1st gripper, regrasp 2nd gripper
         Eigen::Vector3f regrasp1_principal, regrasp2_principal; //for the principal contact point
@@ -170,6 +181,8 @@ namespace shape_analysis{
         ros::NodeHandle node_handle;
         ros::ServiceClient ray_tracing_client;
         ros::ServiceClient angle_collision_client;
+
+        double max_fingers_opening_mm;
         
     };
 }

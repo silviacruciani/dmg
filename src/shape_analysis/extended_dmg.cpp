@@ -35,6 +35,8 @@ ExtendedDMG::ExtendedDMG(ros::NodeHandle n) : ShapeAnalyzer(){
     regrasping_candidate_nodes.push_back(std::vector<std::pair<int, int>>()); //first gripper
     regrasping_candidate_nodes.push_back(std::vector<std::pair<int, int>>()); //second gripper
 
+    max_fingers_opening_mm=700.0; //do be set from ros param server
+
 }
 
 ExtendedDMG::~ExtendedDMG(){
@@ -141,6 +143,11 @@ int ExtendedDMG::compute_extended_path(int finger_id){
     
     //call this for the first gripper
     find_available_regrasping_points(contact_point1, contact_point2, principal_desired_angle, secondary_desired_angle, 0);
+
+    //now we have a regrasping area for the first gripper. We have to obtain one for the second gripper.
+    //We assign to each node in the graph a weight wich depends on the sum of the distances from the release grasp and the 1st regrasp of the
+    //first gripper
+    
 
     return 1;
 }
@@ -504,6 +511,72 @@ std::list<std::pair<int, int>> ExtendedDMG::get_opposite_finger_nodes(Eigen::Vec
         }
     }
 
+}
+
+std::map<int, double> ExtendedDMG::weight_regrasping_area(Eigen::Vector3f release_contact_1, Eigen::Vector3f release_contact_2, Eigen::Vector3f regrasp_contact_1, Eigen::Vector3f regrasp_contact_2){
+    //empty map
+    std::map<int, double> regrasp_area_values;
+
+    //loop through the grasp nodes
+    for(std::map<int, std::set<uint32_t>>::iterator iter=connected_component_to_set_of_nodes.begin(); iter!=connected_component_to_set_of_nodes.end(); ++iter){
+        int component=iter->first;
+        //the direction is the one of the normal to the component
+        Eigen::Vector3f component_normal=component_to_average_normal.at(component);
+        std::set<uint32_t> nodes=iter->second;
+        for(uint32_t n: nodes){
+            //check if this node has already been visited. If yes skip
+            if(regrasp_area_values.count(int(n))<1){
+                //check if the grasp is possible (i.e. necessary opening is not too big)
+                Eigen::Vector3f c; //current centroid
+                c<<all_centroids_cloud->points.at(n).x, 
+                    all_centroids_cloud->points.at(n).y, 
+                    all_centroids_cloud->points.at(n).z;
+
+                //check if it is possible to grasp at the first contact
+                Eigen::Vector3f end_point_ray=c-1000.0*component_normal; //this point is the final point for the ray, from c1 outwards (opposite to line) of 1000 (1m)
+                Eigen::Vector3f init_point_ray=c+1000.0*component_normal; //this point is the final point for the ray, from c1 outwards (opposite to line) of 1000 (1m)
+                
+                std::vector<Eigen::Vector3f> intersections=get_ray_intersections(init_point_ray, end_point_ray);
+                if(intersections.size()>1){
+                    for(Eigen::Vector3f point_i: intersections){
+                        double distance=(point_i-c).norm();
+                        if(distance>0.5){
+                            //in this case the intersection is not the current considered point!
+                            if(distance<max_fingers_opening_mm){
+                                //then this node is good for being regrasped
+                                if(regrasp_area_values.count(int(n))<1){
+                                    //distance between this node and the grasp line
+                                    double node_distance_1=((c-release_contact_1).cross((c-release_contact_2))).norm()/(release_contact_2.cross(release_contact_1)).norm();
+                                    double node_distance_2=((c-regrasp_contact_1).cross((c-regrasp_contact_2))).norm()/(regrasp_contact_2.cross(regrasp_contact_1)).norm();
+                                    regrasp_area_values.insert(std::pair<int, double>(n, node_distance_1+node_distance_2));
+                                }
+                                //check the closest node to the intersection
+                                int opposite_node=get_supervoxel_index(point_i);
+                                if(regrasp_area_values.count(opposite_node)<1){
+                                    double node_distance_1=((point_i-release_contact_1).cross((point_i-release_contact_2))).norm()/(release_contact_2.cross(release_contact_1)).norm();
+                                    double node_distance_2=((point_i-regrasp_contact_1).cross((point_i-regrasp_contact_2))).norm()/(regrasp_contact_2.cross(regrasp_contact_1)).norm();
+                                    regrasp_area_values.insert(std::pair<int, double>(opposite_node, node_distance_1+node_distance_2));
+                                }
+                            }
+                            else{
+                                //this node is not valid and so is the opposite component
+                                if(regrasp_area_values.count(int(n))<1){
+                                    regrasp_area_values.insert(std::pair<int, double>(n, 0.0));
+                                }
+                                int opposite_node=get_supervoxel_index(point_i);
+                                if(regrasp_area_values.count(opposite_node)<1){
+                                    regrasp_area_values.insert(std::pair<int, double>(opposite_node, 0.0));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return regrasp_area_values;
+        
 }
 
 /**
