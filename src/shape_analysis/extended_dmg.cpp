@@ -37,6 +37,9 @@ ExtendedDMG::ExtendedDMG(ros::NodeHandle n) : ShapeAnalyzer(){
 
     max_fingers_opening_mm=700.0; //do be set from ros param server
 
+    //initialize the second viewer
+    regrasp_viewer=new pcl::visualization::PCLVisualizer ("Regrasp Viewer");
+
 }
 
 ExtendedDMG::~ExtendedDMG(){
@@ -148,6 +151,14 @@ int ExtendedDMG::compute_extended_path(int finger_id){
     //We assign to each node in the graph a weight wich depends on the sum of the distances from the release grasp and the 1st regrasp of the
     //first gripper
     
+    //the first gripper must have a determined regrasp point, and so does the second gripper! for now it is only an area...
+
+    //we also must check if it is possible to release the grasp at the initial location, or if additional motions are required
+`   //This is a TODO for later, because for now one can assume that the object has just been grasped there, so release is always possible
+    //it can be generalized "very easily" though
+
+    //second gripper regrasping area:
+    //nodes_distances_from_regrasps=weight_regrasping_area(Eigen::Vector3f release_contact_1, Eigen::Vector3f release_contact_2, Eigen::Vector3f regrasp_contact_1, Eigen::Vector3f regrasp_contact_2);
 
     return 1;
 }
@@ -578,6 +589,43 @@ std::map<int, double> ExtendedDMG::weight_regrasping_area(Eigen::Vector3f releas
     return regrasp_area_values;
         
 }
+
+void ExtendedDMG::visualize_results(){
+    //first of all add the shape to the viewer
+    viewer->addModelFromPolyData(colorable_shape, "object");
+    //now add a green sphere to the goal nodes
+    viewer->addSphere(pcl::PointXYZ(desired_pose_1(0, 0), desired_pose_1(1, 0), desired_pose_1(2, 0)), 1, 0.0, 1.0, 0.0, "goal_node_1");
+    viewer->addSphere(pcl::PointXYZ(desired_pose_2(0, 0), desired_pose_2(1, 0), desired_pose_2(2, 0)), 1, 0.0, 1.0, 0.0, "goal_node_2");
+    //add red spheres to the initial nodes
+    viewer->addSphere(pcl::PointXYZ(initial_pose_1(0, 0), initial_pose_1(1, 0), initial_pose_1(2, 0)), 1, 0.0, 1.0, 0.0, "initial_node_1");
+    viewer->addSphere(pcl::PointXYZ(initial_pose_2(0, 0), initial_pose_2(1, 0), initial_pose_2(2, 0)), 1, 0.0, 1.0, 0.0, "initial_node_2");
+    //add a dark green sphere to the 1st gripper regrasp
+    viewer->addSphere(pcl::PointXYZ(regrasp1_principal(0), regrasp1_principal(1), regrasp1_principal(2)), 1, 0.0, 1.0, 0.0, "regrasp1_node_1");
+    viewer->addSphere(pcl::PointXYZ(regrasp1_secondary(0), regrasp1_secondary(1), regrasp1_secondary(2)), 1, 0.0, 1.0, 0.0, "regrasp1_node_2");
+
+    //loop through the nodes and add spheres with a radius normalized according to the bounding box
+    pcl::PointXYZ max, min;
+    pcl::getMinMax3D(*object_shape, min, max);
+    double normalizing_factor=std::max(std::max(max.x-min.x, max.y-min.y), max.z-min.z);
+    double radius;
+    for(std::pair<int, int> n:regrasping_candidate_nodes[1]){
+        //now check the distance and normalize it w.r.t. the maximum value of the bounding box
+        radius=nodes_distances_from_regrasps.at(n.first)/normalizing_factor;
+        viewer->addSphere(all_centroids_cloud->at(supervoxel_to_pc_idx.at(n.first)), radius, 0.0, 1.0, 0.0, "node_"+std::to_string(n.first));        
+    }
+
+}
+
+void ExtendedDMG::spin_viewer_once(){
+    ShapeAnalyzer::spin_viewer_once();
+    if(!regrasp_viewer->wasStopped()){
+        regrasp_viewer->spinOnce(1);
+    }
+    else{
+        regrasp_viewer->close();
+    }
+}
+
 
 /**
     Obtains the rotation matrix of the rotation around the axis of a given angle

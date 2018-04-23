@@ -65,6 +65,16 @@ namespace shape_analysis{
         */
         void set_angle_collision_service_name(std::string name);
 
+        /**
+            adds all the debug visualization to a viewer
+        */
+        void visualize_results();
+
+        /**
+            overrides the parent's function to spin both the basic viewer and the extended DMG viewer
+        */
+        void spin_viewer_once();
+
 
 
 
@@ -183,6 +193,12 @@ namespace shape_analysis{
         ros::ServiceClient angle_collision_client;
 
         double max_fingers_opening_mm;
+
+        //weights of the nodes according to the distance from regrasping areas
+        std::map<int, double> nodes_distances_from_regrasps;
+
+        //viewer for debug
+        pcl::visualization::PCLVisualizer *regrasp_viewer;
         
     };
 }

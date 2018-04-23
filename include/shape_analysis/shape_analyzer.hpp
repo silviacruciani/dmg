@@ -127,6 +127,9 @@ namespace shape_analysis{
             std::map<std::pair<int, int>, int> extended_nodes_to_connected_component;
             std::map<std::pair<int, int>, double> extended_node_to_slave_distance;
 
+            //mesh for visualization
+            vtkSmartPointer<vtkPolyData> colorable_shape;
+
     };
 }
 
