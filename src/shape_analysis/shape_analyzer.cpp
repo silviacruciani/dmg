@@ -59,21 +59,10 @@ void ShapeAnalyzer::set_object_from_pointcloud(std::string file_name){
     viewer->initCameraParameters();
     pcl::PolygonMesh meshfile;
     //get the shape number from the pointcloud's name
-    std::string shape_number;
-    char* pch;
-    pch = strtok(const_cast<char*>(shape_number.c_str()),"_.");
-    //the dividers are _ and .
-    while (pch!=NULL){
-        pch=strtok(NULL,"_.");
-        //check if it is number
-        char* p ;
-        strtol(pch, &p, 10);
-        if(*p==0){
-            //this is the number we are looking for
-            shape_number=pch;
-        }
-    }
-    pcl::io::loadPolygonFileSTL("/home/silvia/catkin_ws/src/shape_analysis/shapes/shape"+shape_number+".stl", meshfile);
+    std::string shape_name;
+    shape_name=file_name.substr(0, file_name.size()-13);
+
+    pcl::io::loadPolygonFileSTL(shape_name+".stl", meshfile);
 
     //vtkSmartPointer<vtkPolyData> colorable_shape;
     pcl::io::mesh2vtk(meshfile, colorable_shape);

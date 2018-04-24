@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<launch>
+    <node pkg="shape_analysis" type="ray_tracing_server.py" name="ray_tracing_server" output="screen"/>
+
+    <node pkg="shape_analysis" type="shapes_collision_check_server.py" name="shapes_collision_check_server" output="screen"/>
+</launch>

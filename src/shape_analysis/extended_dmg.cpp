@@ -6,6 +6,8 @@
 */
 
 #include "shape_analysis/extended_dmg.hpp"
+#include <pcl/PolygonMesh.h>
+#include <pcl/io/vtk_lib_io.h>
 
 using namespace shape_analysis;
 
@@ -39,11 +41,18 @@ ExtendedDMG::ExtendedDMG(ros::NodeHandle n) : ShapeAnalyzer(){
 
     //initialize the second viewer
     regrasp_viewer=new pcl::visualization::PCLVisualizer ("Regrasp Viewer");
+    regrasp_viewer->setBackgroundColor(1, 1, 1);
+    regrasp_viewer->initCameraParameters();
 
 }
 
 ExtendedDMG::~ExtendedDMG(){
     
+}
+
+void ExtendedDMG::set_object_from_pointcloud(std::string file_name){
+    ShapeAnalyzer::set_object_from_pointcloud(file_name);
+    regrasp_viewer->addModelFromPolyData(colorable_shape, "object_regrasp_view");
 }
 
 
@@ -613,16 +622,16 @@ std::map<int, double> ExtendedDMG::weight_regrasping_area(Eigen::Vector3f releas
 
 void ExtendedDMG::visualize_results(){
     //first of all add the shape to the viewer
-    viewer->addModelFromPolyData(colorable_shape, "object");
+    //viewer->addModelFromPolyData(colorable_shape, "object");
     //now add a green sphere to the goal nodes
-    viewer->addSphere(pcl::PointXYZ(desired_pose_1(0, 0), desired_pose_1(1, 0), desired_pose_1(2, 0)), 1, 0.0, 1.0, 0.0, "goal_node_1");
-    viewer->addSphere(pcl::PointXYZ(desired_pose_2(0, 0), desired_pose_2(1, 0), desired_pose_2(2, 0)), 1, 0.0, 1.0, 0.0, "goal_node_2");
+    regrasp_viewer->addSphere(pcl::PointXYZ(desired_pose_1(0, 0), desired_pose_1(1, 0), desired_pose_1(2, 0)), 1, 0.0, 1.0, 0.0, "goal_node_1");
+    regrasp_viewer->addSphere(pcl::PointXYZ(desired_pose_2(0, 0), desired_pose_2(1, 0), desired_pose_2(2, 0)), 1, 0.0, 1.0, 0.0, "goal_node_2");
     //add red spheres to the initial nodes
-    viewer->addSphere(pcl::PointXYZ(initial_pose_1(0, 0), initial_pose_1(1, 0), initial_pose_1(2, 0)), 1, 0.0, 1.0, 0.0, "initial_node_1");
-    viewer->addSphere(pcl::PointXYZ(initial_pose_2(0, 0), initial_pose_2(1, 0), initial_pose_2(2, 0)), 1, 0.0, 1.0, 0.0, "initial_node_2");
+    regrasp_viewer->addSphere(pcl::PointXYZ(initial_pose_1(0, 0), initial_pose_1(1, 0), initial_pose_1(2, 0)), 1, 0.0, 1.0, 0.0, "initial_node_1");
+    regrasp_viewer->addSphere(pcl::PointXYZ(initial_pose_2(0, 0), initial_pose_2(1, 0), initial_pose_2(2, 0)), 1, 0.0, 1.0, 0.0, "initial_node_2");
     //add a dark green sphere to the 1st gripper regrasp
-    viewer->addSphere(pcl::PointXYZ(regrasp1_principal(0), regrasp1_principal(1), regrasp1_principal(2)), 1, 0.0, 1.0, 0.0, "regrasp1_node_1");
-    viewer->addSphere(pcl::PointXYZ(regrasp1_secondary(0), regrasp1_secondary(1), regrasp1_secondary(2)), 1, 0.0, 1.0, 0.0, "regrasp1_node_2");
+    regrasp_viewer->addSphere(pcl::PointXYZ(regrasp1_principal(0), regrasp1_principal(1), regrasp1_principal(2)), 1, 0.0, 1.0, 0.0, "regrasp1_node_1");
+    regrasp_viewer->addSphere(pcl::PointXYZ(regrasp1_secondary(0), regrasp1_secondary(1), regrasp1_secondary(2)), 1, 0.0, 1.0, 0.0, "regrasp1_node_2");
 
     //loop through the nodes and add spheres with a radius normalized according to the bounding box
     pcl::PointXYZ max, min;
@@ -632,7 +641,7 @@ void ExtendedDMG::visualize_results(){
     for(std::pair<int, int> n:regrasping_candidate_nodes[1]){
         //now check the distance and normalize it w.r.t. the maximum value of the bounding box
         radius=nodes_distances_from_regrasps.at(n.first)/normalizing_factor;
-        viewer->addSphere(all_centroids_cloud->at(supervoxel_to_pc_idx.at(n.first)), radius, 0.0, 1.0, 0.0, "node_"+std::to_string(n.first));        
+        regrasp_viewer->addSphere(all_centroids_cloud->at(supervoxel_to_pc_idx.at(n.first)), radius, 0.0, 1.0, 0.0, "node_"+std::to_string(n.first));        
     }
 
 }

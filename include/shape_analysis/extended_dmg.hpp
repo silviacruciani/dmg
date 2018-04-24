@@ -75,6 +75,12 @@ namespace shape_analysis{
         */
         void spin_viewer_once();
 
+        /**
+            overrides the parent's function and adds the stl file also to the regrasp viewer
+            @param file_name the name of the pointcloud file
+        */
+        void set_object_from_pointcloud(std::string file_name);
+
 
 
 
