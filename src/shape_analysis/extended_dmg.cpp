@@ -153,12 +153,33 @@ int ExtendedDMG::compute_extended_path(int finger_id){
     
     //the first gripper must have a determined regrasp point, and so does the second gripper! for now it is only an area...
 
+    //for now use the first node available among the regrasp candidates
+    Eigen::Vector3f release_contact_1, release_contact_2;
+    pcl::PointXYZRGBA p=all_centroids_cloud->at(regrasping_candidate_nodes[0][0].first);
+    regrasp1_principal<<p.x, p.y, p.z;
+    //get the opposite component
+    Eigen::Vector3f regrasp_line=contact_point2-contact_point1; //direction from principal to secondary finger
+    end_point_ray=regrasp1_principal+1000.0*regrasp_line;
+    intersections=get_ray_intersections(regrasp1_principal, end_point_ray);
+    //get the intersection furthest away from the point
+    if(intersections.size()<1){
+        std::cout<<"error in the secondary contact of regrasping point: no intersections."<<std::endl;
+        return 0;
+    }
+    regrasp1_secondary=intersections[intersections.size()-1];
+
+    //let's assume for now that the release contacts are the initial contacts
+    release_contact_1=initial_pose_1.block<3,1>(0, 0);
+    release_contact_2=initial_pose_2.block<3,1>(0, 0);
+
+
+
     //we also must check if it is possible to release the grasp at the initial location, or if additional motions are required
-`   //This is a TODO for later, because for now one can assume that the object has just been grasped there, so release is always possible
+    //This is a TODO for later, because for now one can assume that the object has just been grasped there, so release is always possible
     //it can be generalized "very easily" though
 
     //second gripper regrasping area:
-    //nodes_distances_from_regrasps=weight_regrasping_area(Eigen::Vector3f release_contact_1, Eigen::Vector3f release_contact_2, Eigen::Vector3f regrasp_contact_1, Eigen::Vector3f regrasp_contact_2);
+    nodes_distances_from_regrasps=weight_regrasping_area(release_contact_1, release_contact_2, regrasp1_principal, regrasp1_secondary);
 
     return 1;
 }
