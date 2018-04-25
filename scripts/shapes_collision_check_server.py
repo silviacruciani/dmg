@@ -17,7 +17,8 @@ class CollisionCheckServer():
     def __init__(self):
         self._shape_name = None
         pkg = rospkg.RosPack()
-        self._object_path = pkg.get_path('shape_analysis') + '/shapes/'
+        #self._object_path = pkg.get_path('shape_analysis') + '/shapes/'
+        self._object_path = ""
 
         #reader for vtk
         self._reader = vtk.vtkSTLReader()

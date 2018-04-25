@@ -95,6 +95,7 @@ bool ExtendedDMGServer::compute_path(InHandPath::Request &req, InHandPath::Respo
     shape_analizer->set_desired_contact(req.desired_grasp[1].position, req.desired_grasp[1].orientation, 1);
     //for the path computation, still implementation in the other class is needed
     shape_analizer->compute_extended_path(0); //the master/slave finger still has to be improved and detailed how to chose which is which
+    shape_analizer->visualize_results();
     //now transform everything into the srv compatible types
     //res.translations=shape_analizer->get_translation_sequence();
     //res.rotations=shape_analizer->get_angle_sequence();

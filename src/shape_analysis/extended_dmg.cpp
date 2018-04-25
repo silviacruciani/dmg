@@ -18,8 +18,8 @@ ExtendedDMG::ExtendedDMG(ros::NodeHandle n) : ShapeAnalyzer(){
     r_translations=std::vector<std::vector<geometry_msgs::Point>>(3);
     r_rotations=std::vector<std::vector<double>>(3);
     r_finger_distances=std::vector<std::vector<double>>(3);
-    ray_tracing_service_name="ray_tracing";
-    angle_collision_service_name="collision_check";
+    ray_tracing_service_name="/ray_tracing";
+    angle_collision_service_name="/collision_check";
     node_handle=n;
 
     ray_tracing_client=node_handle.serviceClient<RayTracing>(ray_tracing_service_name);
@@ -57,9 +57,11 @@ void ExtendedDMG::set_object_from_pointcloud(std::string file_name){
 
 
 int ExtendedDMG::compute_extended_path(int finger_id){
-    bool regrasp=ShapeAnalyzer::compute_extended_path(finger_id);
+    bool no_regrasp=ShapeAnalyzer::compute_extended_path(finger_id);
+    std::cout<<"REGRASP: "<<(!no_regrasp)<<std::endl;
     //if there is no need for regrasp, return the path for the first (and only) contact point.
-    if(!regrasp){
+    if(no_regrasp){
+        std::cout<<"The desired grasp can be achieved without regrasping"<<std::endl;
         r_rotations[0]=ShapeAnalyzer::get_angle_sequence();
         r_translations[0]=ShapeAnalyzer::get_translation_sequence();
         r_finger_distances[0]=ShapeAnalyzer::get_distance_sequence();
@@ -77,8 +79,11 @@ int ExtendedDMG::compute_extended_path(int finger_id){
     line.normalize(); //this is the direction for the two rays to intersect. It goes from contact1 to contact2
 
     //check if it is possible to grasp at the first contact
-    Eigen::Vector3f end_point_ray=contact_point1-1000.0*line; //this point is the final point for the ray, from c1 outwards (opposite to line) of 1000 (1m)
+    Eigen::Vector3f end_point_ray=contact_point1-1000.0*line; //this point is the final point for the ray, from c1 outwards of 1000 (1m)
+    std::cout<<"start point: "<<contact_point1.transpose()<<std::endl;
+    std::cout<<"end point: "<<end_point_ray.transpose()<<std::endl;
     std::vector<Eigen::Vector3f> intersections=get_ray_intersections(contact_point1, end_point_ray);
+    std::cout<<"number of intersections 1 found: "<<intersections.size()<<std::endl;
     //if the intersections are 0, it is fine. If it is 1, it should be the contact point. (the first one is the closest to c1)
     //If it is not, or if it is more, then it is not possible to regrasp.
     if(intersections.size()>0){
@@ -90,8 +95,12 @@ int ExtendedDMG::compute_extended_path(int finger_id){
 
     //if it is possible to regrasp with the principal finger, check with the other
     if(direct_regrasp_1){
-        end_point_ray=contact_point2+1000.0*line; //this point is from c2 outwards (same direction of the line from c1 to c2)
+        end_point_ray=contact_point2+1000.0*line; //this point is from c2 outwards
         intersections=get_ray_intersections(contact_point2, end_point_ray);
+        std::cout<<"start point: "<<contact_point2.transpose()<<std::endl;
+        std::cout<<"end point: "<<end_point_ray.transpose()<<std::endl;
+        std::cout<<"number of intersections 2 found: "<<intersections.size()<<std::endl;
+
         //same criteria as before
         if(intersections.size()>0){
             if(intersections.size()>1 || (intersections[0]-contact_point2).norm()>1.0){
@@ -99,6 +108,8 @@ int ExtendedDMG::compute_extended_path(int finger_id){
             }
         }
     }
+
+    std::cout<<"DIRECT REGRASP: "<<direct_regrasp_1<<std::endl;
 
     //in both cases, it is assumed that the desired angle is an angle at which the gripper can grasp the object
     //with the whole finger, not just at the fingertip
@@ -134,11 +145,16 @@ int ExtendedDMG::compute_extended_path(int finger_id){
     //if it is possible to directly regrasp, then we are happy and we can fill the last sequence with empty vectors
     //otherwise, we should propagate backwards in the DMG to find a proper regrasping area
     if(direct_regrasp_1){
+        std::cout<<"checking if the desired angle is in collision"<<std::endl;
         //collision check with the desired angle: check if the desired angle is reachable
         angle_in_collision=is_in_collision(contact_point1, double(principal_desired_angle)*M_PI/180.0);
+        std::cout<<"is in collision: "<<angle_in_collision<<std::endl;
         if (!angle_in_collision){
             //check if the slave finger is also not in collision
+            std::cout<<"checking if secondary angle is also not in collisiton"<<std::endl;
             angle_in_collision=is_in_collision(contact_point1, double(secondary_desired_angle)*M_PI/180.0);
+            std::cout<<"is in collision: "<<angle_in_collision<<std::endl;
+
         }
 
         if(!angle_in_collision){
@@ -152,9 +168,14 @@ int ExtendedDMG::compute_extended_path(int finger_id){
             return 1;
         }
     }
+
+    std::cout<<"going to the second gripper processing..."<<std::endl;
+    std::cout<<"angles: "<<principal_desired_angle<<"    "<<secondary_desired_angle<<std::endl;
     
     //call this for the first gripper
     find_available_regrasping_points(contact_point1, contact_point2, principal_desired_angle, secondary_desired_angle, 0);
+
+    std::cout<<"done the processing!"<<std::endl;
 
     //now we have a regrasping area for the first gripper. We have to obtain one for the second gripper.
     //We assign to each node in the graph a weight wich depends on the sum of the distances from the release grasp and the 1st regrasp of the
@@ -231,6 +252,7 @@ void ExtendedDMG::set_angle_collision_service_name(std::string name){
 }
 
 std::vector<Eigen::Vector3f> ExtendedDMG::get_ray_intersections(Eigen::Vector3f start, Eigen::Vector3f end){
+    //std::cout<<"calling ray tracing server..."<<std::endl;
     //rewrite the data in ros formats
     geometry_msgs::Point start_point;
     geometry_msgs::Point end_point;
@@ -239,12 +261,13 @@ std::vector<Eigen::Vector3f> ExtendedDMG::get_ray_intersections(Eigen::Vector3f 
     start_point.y=start(1);
     start_point.z=start(2);
 
-    end_point.x=start(0);
-    end_point.y=start(1);
-    end_point.z=start(2);
+    end_point.x=end(0);
+    end_point.y=end(1);
+    end_point.z=end(2);
 
     //get the mesh name from the object's name
-    std::string name=object_name.substr(0, object_name.find("_"))+".stl";
+    std::string name=object_name.substr(0, object_name.size()-13)+".stl";
+    //std::cout<<"object_name: "<<name<<std::endl;
 
     RayTracing srv;
     srv.request.mesh_name=name;
@@ -253,6 +276,7 @@ std::vector<Eigen::Vector3f> ExtendedDMG::get_ray_intersections(Eigen::Vector3f 
 
     //call the server
     if(ray_tracing_client.call(srv)){
+        //std::cout<<"success!"<<std::endl;
         //rewrap the solution into a vector
         std::vector<Eigen::Vector3f> v;
         for(int i=0; i<srv.response.intersections.size(); i++){
@@ -308,7 +332,7 @@ bool ExtendedDMG::is_in_collision(Eigen::Vector3f contact, double angle){
     point4.z=p4(2);
 
     //get the mesh name from the object's name
-    std::string name=object_name.substr(0, object_name.find("_"))+".stl";
+    std::string name=object_name.substr(0, object_name.size()-13)+".stl";
 
     CollisionCheck srv;
     srv.request.mesh_name=name;
@@ -330,26 +354,37 @@ bool ExtendedDMG::is_in_collision(Eigen::Vector3f contact, double angle){
 
 void ExtendedDMG::find_available_regrasping_points(Eigen::Vector3f principal_contact, Eigen::Vector3f secondary_contact, int principal_angle, int secondary_angle, int gripper_id){
     //get the grasp line first (to check for the secondary finger following the principal finger)
+    std::cout<<"here in the processing: 1"<<std::endl;
     Eigen::Vector3f line=secondary_contact-principal_contact;
 
     //get the closest node to the principal contact point
     int principal_supervoxel_idx=get_supervoxel_index(principal_contact);
     //get the index of the angle component
+    std::cout<<"principal angle: "<<principal_angle<<std::endl;
     int principal_angle_component=node_angle_to_angle_component.at(std::pair<int, int>(principal_supervoxel_idx, principal_angle));
+    std::cout<<"here in the processing: 2"<<std::endl;
+
     //get the extended connected component
-    int principal_cc=extended_nodes_to_connected_component.at(std::pair<int, int>(principal_supervoxel_idx, principal_angle));
+    int principal_cc=extended_nodes_to_connected_component.at(std::pair<int, int>(principal_supervoxel_idx, principal_angle_component));
+    std::cout<<"here in the processing: 3"<<std::endl;
+
 
     //do the same to get the secondary connected component
     int secondary_supervoxel_idx=get_supervoxel_index(secondary_contact);
+
     int secondary_angle_component=node_angle_to_angle_component.at(std::pair<int, int>(secondary_supervoxel_idx, secondary_angle));
-    int secondary_cc=extended_nodes_to_connected_component.at(std::pair<int, int>(secondary_supervoxel_idx, secondary_angle));
+    int secondary_cc=extended_nodes_to_connected_component.at(std::pair<int, int>(secondary_supervoxel_idx, secondary_angle_component));
+    std::cout<<"here in the processing: 4"<<std::endl;
+
 
     //now to a BFS starting from the given contact, until we find points from which it is possible to regrasp
     std::queue<std::pair<int, int>> Q;
     std::set<std::pair<int, int>> visited_nodes;
-    std::pair<int, int> n_init=std::pair<int, int>(principal_supervoxel_idx, principal_angle);
+    std::pair<int, int> n_init=std::pair<int, int>(principal_supervoxel_idx, principal_angle_component);
     Q.push(n_init);
     visited_nodes.insert(n_init);
+    std::cout<<"here in the processing: 5"<<std::endl;
+
     while(Q.size()>0){
         std::pair<int, int> n=Q.front();
         Q.pop(); //remove the first element, that is now n
@@ -439,12 +474,12 @@ Eigen::Vector3f ExtendedDMG::get_normal_at_contact(Eigen::Vector3f contact){
     //get the index of the supervoxel
     int idx=get_supervoxel_index(contact);
     //get the normal of that component
-    Eigen::Vector3f normal=component_to_average_normal.at(idx);
+    Eigen::Vector3f normal=component_to_average_normal.at(nodes_to_connected_component.at(idx));
     return normal;
 }
 
 Eigen::Vector3f ExtendedDMG::get_zero_angle_direction(Eigen::Vector3f contact){
-    Eigen::Vector3f nx=component_to_average_normal.at(get_supervoxel_index(contact));
+    Eigen::Vector3f nx=component_to_average_normal.at(nodes_to_connected_component.at(get_supervoxel_index(contact)));
     Eigen::Vector3f ny=get_orthogonal_axis(nx); //ny is the axis at which the angle is 0, for all the nodes
     return ny;
 }
@@ -476,7 +511,10 @@ int ExtendedDMG::pose_to_angle(Eigen::Quaternion<float> q, int component){
     Eigen::Matrix3f gripper_to_component=pose_component.transpose()*pose_gripper;
     Eigen::Vector3f x_prime=gripper_to_component.block<3, 1>(0, 0);
     double angle=atan2(-x_prime(2), -x_prime(1));
+    std::cout<<"angle: "<<angle<<std::endl;
     int int_angle=filter_angle(angle);
+    std::cout<<"int_angle: "<<int_angle<<std::endl;
+    return int_angle;
 
 }
 
@@ -507,8 +545,14 @@ int ExtendedDMG::filter_angle(double angle){
         angle+=2*M_PI;
     }
     angle=angle*180.0/M_PI;
+    std::cout<<"angle degree: "<<angle<<std::endl;
     double round_angle=angle+angle_jump/2;
     int int_angle=floor(round_angle);
+    int_angle=int_angle-(int_angle%angle_jump);
+    std::cout<<"int_angle: "<<int_angle<<std::endl;
+    if(int_angle%angle_jump!=0){
+        std::cout<<"ERROR IN THE ROUNDING TO "<<angle_jump<<std::endl;
+    }
     if(int_angle==360){
         int_angle=0;
     }

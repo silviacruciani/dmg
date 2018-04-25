@@ -21,7 +21,8 @@ class RayTracingServer():
         self._shape_name = None
 
         pkg = rospkg.RosPack()
-        self._object_path = pkg.get_path('shape_analysis') + '/shapes/'
+        #self._object_path = pkg.get_path('shape_analysis') + '/shapes/'
+        self._object_path = ""
 
     def obtain_intersections(self, req):
         name = req.mesh_name
