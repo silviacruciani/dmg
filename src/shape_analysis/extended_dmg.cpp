@@ -37,7 +37,7 @@ ExtendedDMG::ExtendedDMG(ros::NodeHandle n) : ShapeAnalyzer(){
     regrasping_candidate_nodes.push_back(std::vector<std::pair<int, int>>()); //first gripper
     regrasping_candidate_nodes.push_back(std::vector<std::pair<int, int>>()); //second gripper
 
-    max_fingers_opening_mm=700.0; //do be set from ros param server
+    max_fingers_opening_mm=70.0; //do be set from ros param server
 
     //initialize the second viewer
     regrasp_viewer=new pcl::visualization::PCLVisualizer ("Regrasp Viewer");
@@ -52,7 +52,7 @@ ExtendedDMG::~ExtendedDMG(){
 
 void ExtendedDMG::set_object_from_pointcloud(std::string file_name){
     ShapeAnalyzer::set_object_from_pointcloud(file_name);
-    //regrasp_viewer->addModelFromPolyData(colorable_shape, "object_regrasp_view");
+    regrasp_viewer->addModelFromPolyData(colorable_shape, "object_regrasp_view");
 }
 
 
@@ -202,9 +202,9 @@ int ExtendedDMG::compute_extended_path(int finger_id){
     //first gripper
     
     //let's assume for now that the release contacts are the initial contacts
-    Eigen::Vector3f release_contact_1, release_contact_2;
-    release_contact_1=initial_pose_1.block<3,1>(0, 0);
-    release_contact_2=initial_pose_2.block<3,1>(0, 0);
+    Eigen::Vector3f release_contact_1, release_contact_2; //these two are kept in mm
+    release_contact_1=1000.0*initial_pose_1.block<3,1>(0, 0);
+    release_contact_2=1000.0*initial_pose_2.block<3,1>(0, 0);
 
 
 
@@ -304,11 +304,16 @@ bool ExtendedDMG::is_in_collision(Eigen::Vector3f contact, double angle){
     int int_angle=filter_angle(angle);
     int supervoxel_idx=get_supervoxel_index(contact);
     //check if this angle is good
-    std::vector<int> valid_angles=node_to_angle_components.at(supervoxel_idx);
-    if(std::find(valid_angles.begin(), valid_angles.end(), int_angle)!=valid_angles.end()){
+    std::vector<int> angle_components=node_to_angle_components.at(supervoxel_idx);
+    for(int i=0; i<angle_components.size(); i++){
+        std::set<int> valid_angles=node_component_to_angles_subset.at(std::pair<int, int>(supervoxel_idx, angle_components[i]));
+        if(std::find(valid_angles.begin(), valid_angles.end(), int_angle)!=valid_angles.end()){
+
         //the angle is in the list of good angles, so it is not in collision!
         return false;
+        }
     }
+    std::cout<<"++++++++++++++ yup, collision"<<std::endl;
     return true;
 }
 
@@ -574,17 +579,19 @@ std::map<int, double> ExtendedDMG::weight_regrasping_area(Eigen::Vector3f releas
             if(regrasp_area_values.count(int(n))<1){
                 //check if the grasp is possible (i.e. necessary opening is not too big)
                 Eigen::Vector3f c; //current centroid
-                c<<all_centroids_cloud->points.at(n).x, 
-                    all_centroids_cloud->points.at(n).y, 
-                    all_centroids_cloud->points.at(n).z;
+                c<<all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(n)).x, 
+                    all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(n)).y, 
+                    all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(n)).z;
+
 
                 //check if it is possible to grasp at the first contact
                 Eigen::Vector3f end_point_ray=c-1000.0*component_normal; //this point is the final point for the ray, from c1 outwards (opposite to line) of 1000 (1m)
                 Eigen::Vector3f init_point_ray=c+1000.0*component_normal; //this point is the final point for the ray, from c1 outwards (opposite to line) of 1000 (1m)
                 
                 std::vector<Eigen::Vector3f> intersections=get_ray_intersections(init_point_ray, end_point_ray);
-                if(intersections.size()>1){
-                    for(Eigen::Vector3f point_i: intersections){
+                if(intersections.size()>0){
+                    for(int idx=0; idx<intersections.size(); idx++){
+                        Eigen::Vector3f point_i=intersections[idx];
                         double distance=(point_i-c).norm();
                         if(distance>0.5){
                             //in this case the intersection is not the current considered point!
@@ -621,6 +628,7 @@ std::map<int, double> ExtendedDMG::weight_regrasping_area(Eigen::Vector3f releas
                                 }
                             }
                         }
+
                     }
                 }
             }
@@ -634,15 +642,21 @@ std::map<int, double> ExtendedDMG::weight_regrasping_area(Eigen::Vector3f releas
 void ExtendedDMG::visualize_results(){
     //first of all add the shape to the viewer
     //viewer->addModelFromPolyData(colorable_shape, "object");
+    std::cout<<"green spheres: "<<desired_pose_1.transpose()<<std::endl;
+    std::cout<<"green spheres: "<<desired_pose_2.transpose()<<std::endl;
+    std::cout<<"red spheres: "<<initial_pose_1.transpose()<<std::endl;
+    std::cout<<"red spheres: "<<initial_pose_2.transpose()<<std::endl;
+    std::cout<<"dark green spheres: "<<regrasp1_principal.transpose()<<std::endl;
+    std::cout<<"dark green spheres: "<<regrasp2_principal.transpose()<<std::endl;
     //now add a green sphere to the goal nodes
-    regrasp_viewer->addSphere(pcl::PointXYZ(desired_pose_1(0, 0), desired_pose_1(1, 0), desired_pose_1(2, 0)), 10, 0.0, 1.0, 0.0, "goal_node_1");
-    regrasp_viewer->addSphere(pcl::PointXYZ(desired_pose_2(0, 0), desired_pose_2(1, 0), desired_pose_2(2, 0)), 10, 0.0, 1.0, 0.0, "goal_node_2");
+    regrasp_viewer->addSphere(pcl::PointXYZ(desired_pose_1(0, 0)*1000.0, desired_pose_1(1, 0)*1000.0, desired_pose_1(2, 0)*1000.0), 3, 0.0, 1.0, 0.0, "goal_node_1");
+    regrasp_viewer->addSphere(pcl::PointXYZ(desired_pose_2(0, 0)*1000.0, desired_pose_2(1, 0)*1000.0, desired_pose_2(2, 0)*1000.0), 3, 0.0, 1.0, 0.0, "goal_node_2");
     //add red spheres to the initial nodes
-    regrasp_viewer->addSphere(pcl::PointXYZ(initial_pose_1(0, 0), initial_pose_1(1, 0), initial_pose_1(2, 0)), 10, 1.0, 0.0, 0.0, "initial_node_1");
-    regrasp_viewer->addSphere(pcl::PointXYZ(initial_pose_2(0, 0), initial_pose_2(1, 0), initial_pose_2(2, 0)), 10, 1.0, 0.0, 0.0, "initial_node_2");
+    regrasp_viewer->addSphere(pcl::PointXYZ(initial_pose_1(0, 0)*1000.0, initial_pose_1(1, 0)*1000.0, initial_pose_1(2, 0)*1000.0), 3, 1.0, 0.0, 0.0, "initial_node_1");
+    regrasp_viewer->addSphere(pcl::PointXYZ(initial_pose_2(0, 0)*1000.0, initial_pose_2(1, 0)*1000.0, initial_pose_2(2, 0)*1000.0), 3, 1.0, 0.0, 0.0, "initial_node_2");
     //add a dark green sphere to the 1st gripper regrasp
-    regrasp_viewer->addSphere(pcl::PointXYZ(regrasp1_principal(0), regrasp1_principal(1), regrasp1_principal(2)), 10, 0.0, 0.4, 0.0, "regrasp1_node_1");
-    regrasp_viewer->addSphere(pcl::PointXYZ(regrasp1_secondary(0), regrasp1_secondary(1), regrasp1_secondary(2)), 10, 0.0, 0.4, 0.0, "regrasp1_node_2");
+    regrasp_viewer->addSphere(pcl::PointXYZ(regrasp1_principal(0), regrasp1_principal(1), regrasp1_principal(2)), 3, 0.0, 0.4, 0.0, "regrasp1_node_1");
+    regrasp_viewer->addSphere(pcl::PointXYZ(regrasp1_secondary(0), regrasp1_secondary(1), regrasp1_secondary(2)), 3, 0.0, 0.4, 0.0, "regrasp1_node_2");
 
     //loop through the nodes and add spheres with a radius normalized according to the bounding box
     pcl::PointXYZ max, min;
@@ -650,9 +664,8 @@ void ExtendedDMG::visualize_results(){
     double normalizing_factor=std::max(std::max(max.x-min.x, max.y-min.y), max.z-min.z);
     double radius;
     for(std::pair<int, int> n:regrasping_candidate_nodes[1]){
-        std::cout<<"candidate node: "<<n.first<<std::endl;
         //now check the distance and normalize it w.r.t. the maximum value of the bounding box
-        radius=nodes_distances_from_regrasps.at(n.first)/normalizing_factor;
+        radius=100.0*nodes_distances_from_regrasps.at(n.first)/normalizing_factor;
         regrasp_viewer->addSphere(all_centroids_cloud->at(supervoxel_to_pc_idx.at(n.first)), radius, 0.0, 0.0, 1.0, "node_"+std::to_string(n.first));        
     }
 
