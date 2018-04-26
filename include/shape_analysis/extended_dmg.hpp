@@ -81,6 +81,14 @@ namespace shape_analysis{
         */
         void set_object_from_pointcloud(std::string file_name);
 
+        /**
+            checks if a normal at the contact is inwards or outwards
+            @param contact the contact point with the surface
+            @param normal the normal direction to be tested
+            @return true if inwards, false if outwards
+        */
+        bool is_normal_inwards(Eigen::Vector3f contact, Eigen::Vector3f normal);
+
 
 
 

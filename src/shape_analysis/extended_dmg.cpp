@@ -52,7 +52,7 @@ ExtendedDMG::~ExtendedDMG(){
 
 void ExtendedDMG::set_object_from_pointcloud(std::string file_name){
     ShapeAnalyzer::set_object_from_pointcloud(file_name);
-    regrasp_viewer->addModelFromPolyData(colorable_shape, "object_regrasp_view");
+    //regrasp_viewer->addModelFromPolyData(colorable_shape, "object_regrasp_view");
 }
 
 
@@ -165,40 +165,44 @@ int ExtendedDMG::compute_extended_path(int finger_id){
             //the regrasp of the 1st gripper is exactly the desired grasp
             regrasp1_principal=contact_point1;
             regrasp1_secondary=contact_point2;
-            return 1;
         }
+        else{
+            std::cout<<"MORE WORK MUST BE DONE! the 1st gripper cannot directly regrasp!"<<std::endl;
+            //call this for the first gripper
+            find_available_regrasping_points(contact_point1, contact_point2, principal_desired_angle, secondary_desired_angle, 0);
+
+            std::cout<<"Found available regrasping points for the 1st gripper!"<<std::endl;
+
+            //the first gripper must have a determined regrasp point, and so does the second gripper! for now it is only an area......
+
+            //for now use the first node available among the regrasp candidates
+            pcl::PointXYZRGBA p=all_centroids_cloud->at(regrasping_candidate_nodes[0][0].first);
+            regrasp1_principal<<p.x, p.y, p.z;
+            //get the opposite component
+            Eigen::Vector3f regrasp_line=contact_point2-contact_point1; //direction from principal to secondary finger
+            end_point_ray=regrasp1_principal+1000.0*regrasp_line;
+            intersections=get_ray_intersections(regrasp1_principal, end_point_ray);
+            //get the intersection furthest away from the point
+            if(intersections.size()<1){
+                std::cout<<"error in the secondary contact of regrasping point: no intersections."<<std::endl;
+                return 0;
+            }
+            regrasp1_secondary=intersections[intersections.size()-1];
+
+        }
+
     }
 
     std::cout<<"going to the second gripper processing..."<<std::endl;
-    std::cout<<"angles: "<<principal_desired_angle<<"    "<<secondary_desired_angle<<std::endl;
+    std::cout<<"angles: "<<principal_desired_angle<<"    "<<secondary_desired_angle<<std::endl;    
     
-    //call this for the first gripper
-    find_available_regrasping_points(contact_point1, contact_point2, principal_desired_angle, secondary_desired_angle, 0);
 
-    std::cout<<"done the processing!"<<std::endl;
-
-    //now we have a regrasping area for the first gripper. We have to obtain one for the second gripper.
+    //now we have a regrasping area (or points) for the first gripper. We have to obtain one for the second gripper.
     //We assign to each node in the graph a weight wich depends on the sum of the distances from the release grasp and the 1st regrasp of the
     //first gripper
     
-    //the first gripper must have a determined regrasp point, and so does the second gripper! for now it is only an area...
-
-    //for now use the first node available among the regrasp candidates
-    Eigen::Vector3f release_contact_1, release_contact_2;
-    pcl::PointXYZRGBA p=all_centroids_cloud->at(regrasping_candidate_nodes[0][0].first);
-    regrasp1_principal<<p.x, p.y, p.z;
-    //get the opposite component
-    Eigen::Vector3f regrasp_line=contact_point2-contact_point1; //direction from principal to secondary finger
-    end_point_ray=regrasp1_principal+1000.0*regrasp_line;
-    intersections=get_ray_intersections(regrasp1_principal, end_point_ray);
-    //get the intersection furthest away from the point
-    if(intersections.size()<1){
-        std::cout<<"error in the secondary contact of regrasping point: no intersections."<<std::endl;
-        return 0;
-    }
-    regrasp1_secondary=intersections[intersections.size()-1];
-
     //let's assume for now that the release contacts are the initial contacts
+    Eigen::Vector3f release_contact_1, release_contact_2;
     release_contact_1=initial_pose_1.block<3,1>(0, 0);
     release_contact_2=initial_pose_2.block<3,1>(0, 0);
 
@@ -207,9 +211,11 @@ int ExtendedDMG::compute_extended_path(int finger_id){
     //we also must check if it is possible to release the grasp at the initial location, or if additional motions are required
     //This is a TODO for later, because for now one can assume that the object has just been grasped there, so release is always possible
     //it can be generalized "very easily" though
+    std::cout<<"weighting regrasp area"<<std::endl;
 
     //second gripper regrasping area:
     nodes_distances_from_regrasps=weight_regrasping_area(release_contact_1, release_contact_2, regrasp1_principal, regrasp1_secondary);
+    std::cout<<"--done!"<<std::endl;
 
     return 1;
 }
@@ -295,60 +301,14 @@ std::vector<Eigen::Vector3f> ExtendedDMG::get_ray_intersections(Eigen::Vector3f 
 }
 
 bool ExtendedDMG::is_in_collision(Eigen::Vector3f contact, double angle){
-    //get the normal to the surface at the contact point
-    Eigen::Vector3f normal=get_normal_at_contact(contact);
-    //get two points on the vertical line, raised a bit to not be in collision with the contact surface
-    Eigen::Vector3f p1, p2, p3, p4;
-    double delta1=2.0; //2mm
-    double delta2=12.0;
-    p1=contact+delta1*normal;
-    p2=contact+delta2*normal;
-
-    //now get the other two points given the angle
-    Eigen::Vector3f zero_axis=get_zero_angle_direction(contact);
-    //rotate this axis of angle around the normal
-    Eigen::Matrix3f R_axis_angle=axis_angle_matrix(normal, angle);
-    Eigen::Vector3f direction=R_axis_angle*zero_axis; //double check if it is correct
-    p3=contact+l_finger*direction + delta2*normal;
-    p4=contact+l_finger*direction + delta1*normal;
-
-    //now do the service call!
-    geometry_msgs::Point point1, point2, point3, point4;
-
-    point1.x=p1(0);
-    point1.y=p1(1);
-    point1.z=p1(2);
-
-    point2.x=p2(0);
-    point2.y=p2(1);
-    point2.z=p2(2);
-
-    point3.x=p3(0);
-    point3.y=p3(1);
-    point3.z=p3(2);
-
-    point4.x=p4(0);
-    point4.y=p4(1);
-    point4.z=p4(2);
-
-    //get the mesh name from the object's name
-    std::string name=object_name.substr(0, object_name.size()-13)+".stl";
-
-    CollisionCheck srv;
-    srv.request.mesh_name=name;
-    srv.request.v1=point1;
-    srv.request.v2=point2;
-    srv.request.v3=point3;
-    srv.request.v4=point4;
-
-    //call the server
-    if(angle_collision_client.call(srv)){
-        return srv.response.collision;
+    int int_angle=filter_angle(angle);
+    int supervoxel_idx=get_supervoxel_index(contact);
+    //check if this angle is good
+    std::vector<int> valid_angles=node_to_angle_components.at(supervoxel_idx);
+    if(std::find(valid_angles.begin(), valid_angles.end(), int_angle)!=valid_angles.end()){
+        //the angle is in the list of good angles, so it is not in collision!
+        return false;
     }
-
-    ROS_ERROR("Failed to call the service %s", angle_collision_service_name.c_str());
-
-    //assume collision
     return true;
 }
 
@@ -444,6 +404,7 @@ void ExtendedDMG::find_available_regrasping_points(Eigen::Vector3f principal_con
             }
         }
     }
+    std::cout<<"LOOP ENDED"<<std::endl<<std::endl;
 }
 
 int ExtendedDMG::get_supervoxel_index(Eigen::Vector3f contact){
@@ -634,6 +595,9 @@ std::map<int, double> ExtendedDMG::weight_regrasping_area(Eigen::Vector3f releas
                                     double node_distance_1=((c-release_contact_1).cross((c-release_contact_2))).norm()/(release_contact_2.cross(release_contact_1)).norm();
                                     double node_distance_2=((c-regrasp_contact_1).cross((c-regrasp_contact_2))).norm()/(regrasp_contact_2.cross(regrasp_contact_1)).norm();
                                     regrasp_area_values.insert(std::pair<int, double>(n, node_distance_1+node_distance_2));
+                                    for(int angle_comp:node_to_angle_components.at(n)){
+                                        regrasping_candidate_nodes[1].push_back(std::pair<int, int>(n, angle_comp));
+                                    }
                                 }
                                 //check the closest node to the intersection
                                 int opposite_node=get_supervoxel_index(point_i);
@@ -641,6 +605,9 @@ std::map<int, double> ExtendedDMG::weight_regrasping_area(Eigen::Vector3f releas
                                     double node_distance_1=((point_i-release_contact_1).cross((point_i-release_contact_2))).norm()/(release_contact_2.cross(release_contact_1)).norm();
                                     double node_distance_2=((point_i-regrasp_contact_1).cross((point_i-regrasp_contact_2))).norm()/(regrasp_contact_2.cross(regrasp_contact_1)).norm();
                                     regrasp_area_values.insert(std::pair<int, double>(opposite_node, node_distance_1+node_distance_2));
+                                    for(int angle_comp:node_to_angle_components.at(opposite_node)){
+                                        regrasping_candidate_nodes[1].push_back(std::pair<int, int>(opposite_node, angle_comp));
+                                    }
                                 }
                             }
                             else{
@@ -668,14 +635,14 @@ void ExtendedDMG::visualize_results(){
     //first of all add the shape to the viewer
     //viewer->addModelFromPolyData(colorable_shape, "object");
     //now add a green sphere to the goal nodes
-    regrasp_viewer->addSphere(pcl::PointXYZ(desired_pose_1(0, 0), desired_pose_1(1, 0), desired_pose_1(2, 0)), 1, 0.0, 1.0, 0.0, "goal_node_1");
-    regrasp_viewer->addSphere(pcl::PointXYZ(desired_pose_2(0, 0), desired_pose_2(1, 0), desired_pose_2(2, 0)), 1, 0.0, 1.0, 0.0, "goal_node_2");
+    regrasp_viewer->addSphere(pcl::PointXYZ(desired_pose_1(0, 0), desired_pose_1(1, 0), desired_pose_1(2, 0)), 10, 0.0, 1.0, 0.0, "goal_node_1");
+    regrasp_viewer->addSphere(pcl::PointXYZ(desired_pose_2(0, 0), desired_pose_2(1, 0), desired_pose_2(2, 0)), 10, 0.0, 1.0, 0.0, "goal_node_2");
     //add red spheres to the initial nodes
-    regrasp_viewer->addSphere(pcl::PointXYZ(initial_pose_1(0, 0), initial_pose_1(1, 0), initial_pose_1(2, 0)), 1, 0.0, 1.0, 0.0, "initial_node_1");
-    regrasp_viewer->addSphere(pcl::PointXYZ(initial_pose_2(0, 0), initial_pose_2(1, 0), initial_pose_2(2, 0)), 1, 0.0, 1.0, 0.0, "initial_node_2");
+    regrasp_viewer->addSphere(pcl::PointXYZ(initial_pose_1(0, 0), initial_pose_1(1, 0), initial_pose_1(2, 0)), 10, 1.0, 0.0, 0.0, "initial_node_1");
+    regrasp_viewer->addSphere(pcl::PointXYZ(initial_pose_2(0, 0), initial_pose_2(1, 0), initial_pose_2(2, 0)), 10, 1.0, 0.0, 0.0, "initial_node_2");
     //add a dark green sphere to the 1st gripper regrasp
-    regrasp_viewer->addSphere(pcl::PointXYZ(regrasp1_principal(0), regrasp1_principal(1), regrasp1_principal(2)), 1, 0.0, 1.0, 0.0, "regrasp1_node_1");
-    regrasp_viewer->addSphere(pcl::PointXYZ(regrasp1_secondary(0), regrasp1_secondary(1), regrasp1_secondary(2)), 1, 0.0, 1.0, 0.0, "regrasp1_node_2");
+    regrasp_viewer->addSphere(pcl::PointXYZ(regrasp1_principal(0), regrasp1_principal(1), regrasp1_principal(2)), 10, 0.0, 0.4, 0.0, "regrasp1_node_1");
+    regrasp_viewer->addSphere(pcl::PointXYZ(regrasp1_secondary(0), regrasp1_secondary(1), regrasp1_secondary(2)), 10, 0.0, 0.4, 0.0, "regrasp1_node_2");
 
     //loop through the nodes and add spheres with a radius normalized according to the bounding box
     pcl::PointXYZ max, min;
@@ -683,9 +650,10 @@ void ExtendedDMG::visualize_results(){
     double normalizing_factor=std::max(std::max(max.x-min.x, max.y-min.y), max.z-min.z);
     double radius;
     for(std::pair<int, int> n:regrasping_candidate_nodes[1]){
+        std::cout<<"candidate node: "<<n.first<<std::endl;
         //now check the distance and normalize it w.r.t. the maximum value of the bounding box
         radius=nodes_distances_from_regrasps.at(n.first)/normalizing_factor;
-        regrasp_viewer->addSphere(all_centroids_cloud->at(supervoxel_to_pc_idx.at(n.first)), radius, 0.0, 1.0, 0.0, "node_"+std::to_string(n.first));        
+        regrasp_viewer->addSphere(all_centroids_cloud->at(supervoxel_to_pc_idx.at(n.first)), radius, 0.0, 0.0, 1.0, "node_"+std::to_string(n.first));        
     }
 
 }
@@ -698,6 +666,31 @@ void ExtendedDMG::spin_viewer_once(){
     else{
         regrasp_viewer->close();
     }
+}
+
+bool ExtendedDMG::is_normal_inwards(Eigen::Vector3f contact, Eigen::Vector3f normal){
+    //first of all check if the contact is really on the surface (assume a tolerance of 1.5 cm)
+    Eigen::Vector3f precise_contact=contact;
+    std::vector<Eigen::Vector3f> intersections=get_ray_intersections(contact, contact + 15*normal);
+    if(intersections.size()>0){
+        precise_contact=intersections[0];
+    }
+    else{
+        intersections=get_ray_intersections(contact, contact - 15*normal);
+        if(intersections.size()>0){
+            precise_contact=intersections[0];
+        }
+    }
+
+    intersections=get_ray_intersections(contact, contact + 1000*normal);
+    //if the intersections from the surface, along the normal, are even, the normal is outwards, otherwise inwards
+    if(intersections.size()%2==0){
+    std::cout<<"the normal is outwards"<<std::endl;
+        return false;
+    }
+    std::cout<<"the normal is inwards"<<std::endl;
+    return true;
+
 }
 
 
