@@ -706,6 +706,68 @@ bool ExtendedDMG::is_normal_inwards(Eigen::Vector3f contact, Eigen::Vector3f nor
 
 }
 
+geometry_msgs::Pose ExtendedDMG::get_regrasp_pose(int gripper){
+    geometry_msgs::Pose regrasp_pose;
+
+    //get the corresponding regrasp point and angle
+    Eigen::Vector3f regrasp_point;
+    double regrasp_angle;
+
+    if(gripper==0){
+        regrasp_point=regrasp1_principal;
+        regrasp_angle=regrasp1_angle;
+    }
+    else{
+        regrasp_point=regrasp2_principal;
+        regrasp_angle=regrasp2_angle;
+    }
+
+    Eigen::Quaternion<float> q=angle_to_pose(regrasp_angle, regrasp_point);
+    //fill the geometry msg with the values (from mm to m)
+    regrasp_pose.position.x=regrasp_point(0)/1000.0;
+    regrasp_pose.position.y=regrasp_point(1)/1000.0;
+    regrasp_pose.position.z=regrasp_point(2)/1000.0;
+
+    regrasp_pose.orientation.x=q.x();
+    regrasp_pose.orientation.y=q.y();
+    regrasp_pose.orientation.z=q.z();
+    regrasp_pose.orientation.w=q.w();
+
+    return regrasp_pose;
+}
+
+Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3f contact){
+    //the nx axis corresponds to the y axis of the gripper (this could be inverted according to which finger is set as principal finger)
+    Eigen::Vector3f nx=get_normal_at_contact(contact);
+    Eigen::Vector3f ny=get_orthogonal_axis(nx);
+
+    //now rotate ny around nx of -angle
+    Eigen::AngleAxis<float> aa(-angle*M_PI/180.0, nx);
+    Eigen::Vector3f t_ny=aa*ny;
+
+    //get the third axis
+    Eigen::Vector3f t_nz=nx.cross(t_ny);
+
+    //fill a matrix
+    Eigen::Matrix3f component_matrix;
+    component_matrix(0,0)=nx(0);
+    component_matrix(1,0)=nx(1);
+    component_matrix(2,0)=nx(2);
+
+    component_matrix(0,1)=t_ny(0);
+    component_matrix(1,1)=t_ny(1);
+    component_matrix(2,1)=t_ny(2);
+
+    component_matrix(0,2)=t_nz(0);
+    component_matrix(1,2)=t_nz(1);
+    component_matrix(2,2)=t_nz(2);
+
+    //get the quaternion corresponding to this matrix
+    Eigen::Quaternion<float> q(component_matrix);
+    return q;
+
+}
+
 
 /**
     Obtains the rotation matrix of the rotation around the axis of a given angle

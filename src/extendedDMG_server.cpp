@@ -86,7 +86,7 @@ void ExtendedDMGServer::spinOnce(){
     shape_analizer->spin_viewer_once();
 }
 
-bool ExtendedDMGServer::compute_path(InHandPath::Request &req, InHandPath::Response &res){
+bool ExtendedDMGServer::compute_path(ExtendedInHandPath::Request &req, ExtendedInHandPath::Response &res){
     shape_analizer->set_initial_contact(req.initial_grasp[0].position, req.initial_grasp[0].orientation, 0);
     shape_analizer->set_initial_contact(req.initial_grasp[1].position, req.initial_grasp[1].orientation, 1);
     //now set the desired contacts
@@ -97,10 +97,21 @@ bool ExtendedDMGServer::compute_path(InHandPath::Request &req, InHandPath::Respo
     shape_analizer->compute_extended_path(0); //the master/slave finger still has to be improved and detailed how to chose which is which
     shape_analizer->visualize_results();
     //now transform everything into the srv compatible types
-    //res.translations=shape_analizer->get_translation_sequence();
-    //res.rotations=shape_analizer->get_angle_sequence();
-    //res.distance_variations=shape_analizer->get_distance_sequence();
+    std::vector<std::vector<geometry_msgs::Point>> translations=shape_analizer->get_translation_sequence();
+    res.translations_1=translations[0];
+    res.translations_2=translations[1];
+    res.translations_3=translations[2];
+    std::vector<std::vector<double>> rotations=shape_analizer->get_angle_sequence();
+    res.rotations_1=rotations[0];
+    res.rotations_2=rotations[1];
+    res.rotations_3=rotations[2];
+    std::vector<std::vector<double>> distances=shape_analizer->get_distance_sequence();
+    res.distance_variations_1=distances[0];
+    res.distance_variations_2=distances[1];
+    res.distance_variations_3=distances[2];
     res.master_index=0; //no change in the requested master finger   
+    res.first_gripper_regrasp=shape_analizer->get_regrasp_pose(0);
+    res.second_gripper_regrasp=shape_analizer->get_regrasp_pose(1);
 
     return true;
 

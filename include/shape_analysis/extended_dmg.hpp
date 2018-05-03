@@ -15,6 +15,8 @@
 #include <Eigen/Geometry>
 #include "shape_analysis/RayTracing.h"
 #include "shape_analysis/CollisionCheck.h"
+#include "geometry_msgs/Pose.h"
+
 
 namespace shape_analysis{
     class ExtendedDMG : public ShapeAnalyzer{
@@ -90,6 +92,13 @@ namespace shape_analysis{
         bool is_normal_inwards(Eigen::Vector3f contact, Eigen::Vector3f normal);
 
 
+        /**
+            return the regrasp pose from the regrasp point and angle
+            @param gripper the gripper id (0 for 1st gripper, >0 for 2nd gripper)
+            @return the regrasp pose
+        */
+        geometry_msgs::Pose get_regrasp_pose(int gripper);
+
 
 
     private:
@@ -151,6 +160,14 @@ namespace shape_analysis{
         int pose_to_angle(Eigen::Quaternion<float> q, int component);
 
         /**
+            Gets the quaternion corresponding to a grasp on the given contact point with the given angle
+            @param angle the angle at the contact point
+            @param contact the 3D contact point
+            @return the corresponding quaternion of the gripper
+        */
+        Eigen::Quaternion<float> angle_to_pose(double angle, Eigen::Vector3f contact);
+
+        /**
             Finds the orientation of the frame of the connected components as rotation matrix
             @param component the component index
             @return the rotation matrix
@@ -197,6 +214,7 @@ namespace shape_analysis{
         std::vector<std::vector<geometry_msgs::Point>> r_translations;
         std::vector<std::vector<double>> r_rotations;
         std::vector<std::vector<double>> r_finger_distances;
+        double regrasp1_angle, regrasp2_angle;
 
         std::vector<std::vector<std::pair<int, int>>> regrasping_candidate_nodes; //for the 1st and 2nd gripper, all the good nodes for regrasping (regrasp area)
 
