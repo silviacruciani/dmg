@@ -10,7 +10,7 @@ import rospy
 import Tkinter
 from Tkinter import *
 import math
-from shape_analysis.srv import *
+from shape_analysis.srv import ExtendedInHandPath, ExtendedInHandPathRequest, ExtendedInHandPathResponse
 from geometry_msgs.msg import Pose, Point, Quaternion
 
 class ExtendedDMGClient(Tkinter.Tk):
@@ -174,8 +174,8 @@ class ExtendedDMGClient(Tkinter.Tk):
 
         rospy.wait_for_service(self.server_name, timeout = 5.0)
         try:
-            manipulation_path = rospy.ServiceProxy(self.server_name, InHandPath)
-            req = InHandPathRequest()
+            manipulation_path = rospy.ServiceProxy(self.server_name, ExtendedInHandPath)
+            req = ExtendedInHandPathRequest()
             req.initial_grasp.append(pose1)
             req.initial_grasp.append(pose2)
             req.desired_grasp.append(pose1d)

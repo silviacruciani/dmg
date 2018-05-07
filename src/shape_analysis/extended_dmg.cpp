@@ -37,7 +37,8 @@ ExtendedDMG::ExtendedDMG(ros::NodeHandle n) : ShapeAnalyzer(){
     regrasping_candidate_nodes.push_back(std::vector<std::pair<int, int>>()); //first gripper
     regrasping_candidate_nodes.push_back(std::vector<std::pair<int, int>>()); //second gripper
 
-    max_fingers_opening_mm=70.0; //do be set from ros param server
+    max_fingers_opening_mm=70.0; //to be set from ros param server
+    regrasp_distance_threshold=20.0; //to be set from ros param server (used to weight the regrasp area)
 
     //initialize the second viewer
     regrasp_viewer=new pcl::visualization::PCLVisualizer ("Regrasp Viewer");
@@ -599,9 +600,15 @@ std::map<int, double> ExtendedDMG::weight_regrasping_area(Eigen::Vector3f releas
                                 //then this node is good for being regrasped
                                 if(regrasp_area_values.count(int(n))<1){
                                     //distance between this node and the grasp line
-                                    double node_distance_1=((c-release_contact_1).cross((c-release_contact_2))).norm()/(release_contact_2.cross(release_contact_1)).norm();
-                                    double node_distance_2=((c-regrasp_contact_1).cross((c-regrasp_contact_2))).norm()/(regrasp_contact_2.cross(regrasp_contact_1)).norm();
-                                    regrasp_area_values.insert(std::pair<int, double>(n, node_distance_1+node_distance_2));
+                                    double node_distance_1=((c-release_contact_1).cross((c-release_contact_2))).norm()/(release_contact_2-release_contact_1).norm();
+                                    double node_distance_2=((c-regrasp_contact_1).cross((c-regrasp_contact_2))).norm()/(regrasp_contact_2-regrasp_contact_1).norm();
+                                    double d_value=node_distance_1+node_distance_2;
+                                    //if one of the distances is too close, then put 0 as value
+                                    if(node_distance_1<regrasp_distance_threshold||node_distance_2<regrasp_distance_threshold){
+                                        d_value=0.0;
+                                    }
+
+                                    regrasp_area_values.insert(std::pair<int, double>(n, d_value));
                                     for(int angle_comp:node_to_angle_components.at(n)){
                                         regrasping_candidate_nodes[1].push_back(std::pair<int, int>(n, angle_comp));
                                     }
@@ -609,9 +616,15 @@ std::map<int, double> ExtendedDMG::weight_regrasping_area(Eigen::Vector3f releas
                                 //check the closest node to the intersection
                                 int opposite_node=get_supervoxel_index(point_i);
                                 if(regrasp_area_values.count(opposite_node)<1){
-                                    double node_distance_1=((point_i-release_contact_1).cross((point_i-release_contact_2))).norm()/(release_contact_2.cross(release_contact_1)).norm();
-                                    double node_distance_2=((point_i-regrasp_contact_1).cross((point_i-regrasp_contact_2))).norm()/(regrasp_contact_2.cross(regrasp_contact_1)).norm();
-                                    regrasp_area_values.insert(std::pair<int, double>(opposite_node, node_distance_1+node_distance_2));
+                                    double node_distance_1=((point_i-release_contact_1).cross((point_i-release_contact_2))).norm()/(release_contact_2-release_contact_1).norm();
+                                    double node_distance_2=((point_i-regrasp_contact_1).cross((point_i-regrasp_contact_2))).norm()/(regrasp_contact_2-regrasp_contact_1).norm();
+                                    double d_value=node_distance_1+node_distance_2;
+                                    //if one of the distances is too close, then put 0 as value
+                                    if(node_distance_1<regrasp_distance_threshold||node_distance_2<regrasp_distance_threshold){
+                                        d_value=0.0;
+                                    }
+
+                                    regrasp_area_values.insert(std::pair<int, double>(opposite_node, d_value));
                                     for(int angle_comp:node_to_angle_components.at(opposite_node)){
                                         regrasping_candidate_nodes[1].push_back(std::pair<int, int>(opposite_node, angle_comp));
                                     }
@@ -665,7 +678,7 @@ void ExtendedDMG::visualize_results(){
     double radius;
     for(std::pair<int, int> n:regrasping_candidate_nodes[1]){
         //now check the distance and normalize it w.r.t. the maximum value of the bounding box
-        radius=100.0*nodes_distances_from_regrasps.at(n.first)/normalizing_factor;
+        radius=10.0*nodes_distances_from_regrasps.at(n.first)/normalizing_factor;
         regrasp_viewer->addSphere(all_centroids_cloud->at(supervoxel_to_pc_idx.at(n.first)), radius, 0.0, 0.0, 1.0, "node_"+std::to_string(n.first));        
     }
 

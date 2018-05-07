@@ -224,7 +224,7 @@ namespace shape_analysis{
         ros::ServiceClient ray_tracing_client;
         ros::ServiceClient angle_collision_client;
 
-        double max_fingers_opening_mm;
+        double max_fingers_opening_mm, regrasp_distance_threshold;
 
         //weights of the nodes according to the distance from regrasping areas
         std::map<int, double> nodes_distances_from_regrasps;
