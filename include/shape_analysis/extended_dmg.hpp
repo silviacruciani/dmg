@@ -206,6 +206,22 @@ namespace shape_analysis{
         */
         std::map<int, double> weight_regrasping_area(Eigen::Vector3f release_contact_1, Eigen::Vector3f release_contact_2, Eigen::Vector3f regrasp_contact_1, Eigen::Vector3f regrasp_contact_2);
 
+
+        /**
+            Given a regrasp candidate and the current gripping pose and future regrasp pose, returns the best angle
+            @param contact1_principal the candidate contact point principal
+            @param contact1_secondary the candidate contact point secondary
+            @param point1_principal the current gripping point principal
+            @param point1_secondary the current gripping point secondary
+            @param grasping_angle1 the current grasping angle principal
+            @param point2_principal the candidate regrasping point principal
+            @param point2_secondary the candidate regrasping point secondary
+            @param grasping_angle2 the candidate regrasping angle principal (can be -1 and adds freedom of choiche. If that's the case, its value is modified)
+            @return the best angle for regrasping, if there is any available. -1 otherwise
+        */
+        int get_collision_free_regrasp_angle(Eigen::Vector3f contact1_principal, Eigen::Vector3f contact1_secondary, Eigen::Vector3f point1_principal, Eigen::Vector3f point1_secondary, int grasping_angle1, Eigen::Vector3f point2_principal, Eigen::Vector3f point2_secondary, int &grasping_angle2);
+        
+
         //regrasp 1st gripper, regrasp 2nd gripper
         Eigen::Vector3f regrasp1_principal, regrasp2_principal; //for the principal contact point
         Eigen::Vector3f regrasp1_secondary, regrasp2_secondary; //for the secondary contact point

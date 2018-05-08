@@ -144,7 +144,8 @@ int ExtendedDMG::compute_extended_path(int finger_id){
 
 
     //if it is possible to directly regrasp, then we are happy and we can fill the last sequence with empty vectors
-    //otherwise, we should propagate backwards in the DMG to find a proper regrasping area
+    //otherwise, we should propagate backwards in the DMG to find a proper regrasping area (TODO)
+    int regrasp1_angle=-1;
     if(direct_regrasp_1){
         std::cout<<"checking if the desired angle is in collision"<<std::endl;
         //collision check with the desired angle: check if the desired angle is reachable
@@ -166,6 +167,7 @@ int ExtendedDMG::compute_extended_path(int finger_id){
             //the regrasp of the 1st gripper is exactly the desired grasp
             regrasp1_principal=contact_point1;
             regrasp1_secondary=contact_point2;
+            regrasp1_angle=principal_desired_angle;
         }
         else{
             std::cout<<"MORE WORK MUST BE DONE! the 1st gripper cannot directly regrasp!"<<std::endl;
@@ -193,6 +195,7 @@ int ExtendedDMG::compute_extended_path(int finger_id){
         }
 
     }
+    //shouldn't the find available regrasping points be here?
 
     std::cout<<"going to the second gripper processing..."<<std::endl;
     std::cout<<"angles: "<<principal_desired_angle<<"    "<<secondary_desired_angle<<std::endl;    
@@ -206,6 +209,8 @@ int ExtendedDMG::compute_extended_path(int finger_id){
     Eigen::Vector3f release_contact_1, release_contact_2; //these two are kept in mm
     release_contact_1=1000.0*initial_pose_1.block<3,1>(0, 0);
     release_contact_2=1000.0*initial_pose_2.block<3,1>(0, 0);
+    Eigen::Quaternion<float> quat(initial_pose_1(6), initial_pose_1(3), initial_pose_1(4), initial_pose_1(5));
+    int release_angle=pose_to_angle(quat, nodes_to_connected_component.at(get_supervoxel_index(release_contact_1)));
 
 
 
@@ -247,6 +252,8 @@ int ExtendedDMG::compute_extended_path(int finger_id){
     regrasp2_secondary(0)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node2]).x;
     regrasp2_secondary(1)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node2]).y;
     regrasp2_secondary(2)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node2]).z;
+
+    int regrasp_angle=get_collision_free_regrasp_angle(regrasp2_principal, regrasp2_secondary, release_contact_1, release_contact_2, release_angle, regrasp1_principal, regrasp1_secondary, regrasp1_angle);
 
     //check if this pose is free of collision! Otherwise:
     // 1) move the release point
@@ -829,6 +836,11 @@ Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3
     return q;
 
 }
+
+int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_principal, Eigen::Vector3f contact1_secondary, Eigen::Vector3f point1_principal, Eigen::Vector3f point1_secondary, int grasping_angle1, Eigen::Vector3f point2_principal, Eigen::Vector3f point2_secondary, int &grasping_angle2){
+    return -1;
+}
+
 
 
 
