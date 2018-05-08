@@ -227,8 +227,18 @@ int ExtendedDMG::compute_extended_path(int finger_id){
     std::map<std::pair<int, int>, double>::reverse_iterator r_it=regrasp_poses_distance_values.rbegin();
 
     //TODO additional checks for the angle are needed, but for now just get the position, not the orientation
-    regrasp2_node1=(*r_it).first.first;
-    regrasp2_node2=(*r_it).first.second;
+    regrasp2_node1=r_it->first.first;
+    regrasp2_node2=r_it->first.second;
+    double maxit=r_it->second;
+    //TODO find a more efficient way of sorting (e.g. swap keys and values in the map)
+    for(; r_it!=regrasp_poses_distance_values.rend(); r_it++){
+        if(r_it->second>maxit){
+            maxit=r_it->second;
+            regrasp2_node1=r_it->first.first;
+            regrasp2_node2=r_it->first.second;
+        }
+
+    }
     //store the values in eigen vectors:
     regrasp2_principal(0)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node1]).x;
     regrasp2_principal(1)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node1]).y;
