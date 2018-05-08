@@ -916,3 +916,142 @@ Eigen::Matrix3f axis_angle_matrix(Eigen::Vector3f axis, double theta){
     return R;
 }
 
+
+/**
+    Checks the intersection between a segment and a plane
+    @param start_point the start point of the segment
+    @param end_point the end point of the segment
+    @param plane_normal the normal to the plane
+    @param plane_point a point on the plane 
+    @return the intersection point, -1 if they don't intersect, 0 if they intersect in 1 point, 1 if the line lies on the plane
+*/
+std::pair<Eigen::Vector3f, int> line_plane_intersection(Eigen::Vector3f start_point, Eigen::Vector3f end_point, Eigen::Vector3f plane_normal, Eigen::Vector3f plane_point){
+    //the line lies on the plane if it is normal to the plane normal
+    if(fabs((end_point-start_point).dot(plane_normal))<0.000000001){
+        return std::pair<Eigen::Vector3f, int>(Eigen::Vector3f(), 1);
+    }
+
+    //get the signed distance between the two segment points and the plane
+    double start_dist=plane_normal.dot(start_point-plane_point);
+    double end_dist=plane_normal.dot(end_point-plane_point);
+    //check if they have the same sign. If yes, there is no intersection
+    if(start_dist*end_dist>0){
+        return std::pair<Eigen::Vector3f, int>(Eigen::Vector3f(), -1);
+    }
+
+    //get the point on the line
+    double t=start_dist/(start_dist-end_dist);
+    Eigen::Vector3f point=t*(end_point-start_point);
+    return std::pair<Eigen::Vector3f, int>(point, 0);
+
+}
+
+/**
+    Checks if a segment intersects a rectangle
+    @param start_point the start point of the segment
+    @param end_point the end point of the segment
+    @param rectangle a vector with the 4 vertices of the rectangle
+    @return true if they intersect, false otherwise
+*/
+bool segment_rectangle_intersecting(Eigen::Vector3f start_point, Eigen::Vector3f end_point, std::vector<Eigen::Vector3f> rectangle){
+    //find the normal vector to the plane of the rectangle
+    Eigen::Vector3f A, B, C, D; //three point of the rectangle
+    A=rectangle[0];
+    B=rectangle[1];
+    C=rectangle[2];
+    D=rectangle[3];
+    Eigen::Vector3f n=(B-A).cross(C-A);
+    n.normalize();
+    std::pair<Eigen::Vector3f, int> intersection=line_plane_intersection(start_point, end_point, n, A);
+    if(intersection.second==-1){
+        //there is no intersection
+        return false;
+    }
+    else{
+        //get a bounding box:
+        double maxx, maxy, maxz, minx, miny, minz;
+        double epsilon=0.001;
+
+        maxx=std::max(A(0), std::max(B(0), std::max(C(0), D(0))));
+        maxy=std::max(A(1), std::max(B(1), std::max(C(1), D(1))));
+        maxz=std::max(A(2), std::max(B(2), std::max(C(2), D(2))));
+
+        minx=std::min(A(0), std::max(B(0), std::max(C(0), D(0))));
+        miny=std::min(A(1), std::max(B(1), std::max(C(1), D(1))));
+        minz=std::min(A(2), std::max(B(2), std::max(C(2), D(2))));
+        if(intersection.second==0){
+        //check if the point is inside the rectangle:
+            Eigen::Vector3f point=intersection.first;
+
+            if(point(0)>=minx&&point(0)<=maxx&&
+                point(1)>=miny&&point(1)<=maxy&&
+                point(2)>=minz&&point(2)<=maxz){
+                return true;
+            }
+            else{
+                return false;
+            }
+        }
+        else{
+            //check if the points are outside in the same direction
+            if((start_point(0)>maxx && end_point(0)>maxx)||
+                (start_point(1)>maxy && end_point(1)>maxy)||
+                (start_point(2)>maxz && end_point(2)>maxz)||
+                (start_point(0)<minx && end_point(0)<minx)||
+                (start_point(1)<miny && end_point(1)<miny)||
+                (start_point(2)<minz && end_point(2)<minz)){
+                return false;
+            }
+            else{
+                return true;
+            }
+
+        }
+    }
+
+}
+
+/**
+    Checks if two rectangles are intersecting
+    @param rectangle_1 a vector containing the 4 vertices of the 1st rectangle (in connected order)
+    @param rectangle_2 a vector containing the 4 vertices of the 2nd rectangle (in connected order)
+    @return true if the rectangles intersect, false otherwise
+*/
+bool are_rectangles_intersecting(std::vector<Eigen::Vector3f> rectangle_1, std::vector<Eigen::Vector3f> rectangle_2){
+    //check if any of the 4 segments of the 1st rectangle intersects the 2nd rectangle
+    bool intersects=false;
+    Eigen::Vector3f start, end;
+    for(int i=0; i<rectangle_1.size(); i++){
+        start=rectangle_1[i-1];
+        end=rectangle_1[i];
+        intersects=segment_rectangle_intersecting(start, end, rectangle_2);
+        if(intersects){
+            return true;
+        }
+    }
+    //last segment:
+    start=rectangle_1[rectangle_1.size()-1];
+    end=rectangle_1[0];
+    intersects=segment_rectangle_intersecting(start, end, rectangle_2);
+    if(intersects){
+        return true;
+    }
+    //now check if any of the 4 segments of the 2n rectangle intersects the 1st rectangle
+    for(int i=0; i<rectangle_2.size(); i++){
+        start=rectangle_2[i-1];
+        end=rectangle_2[i];
+        intersects=segment_rectangle_intersecting(start, end, rectangle_1);
+        if(intersects){
+            return true;
+        }
+    }
+    //last segment:
+    start=rectangle_2[rectangle_2.size()-1];
+    end=rectangle_2[0];
+    intersects=segment_rectangle_intersecting(start, end, rectangle_1);
+    if(intersects){
+        return true;
+    }
+
+    return false;
+}
