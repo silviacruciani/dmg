@@ -215,8 +215,10 @@ namespace shape_analysis{
         std::vector<std::vector<double>> r_rotations;
         std::vector<std::vector<double>> r_finger_distances;
         double regrasp1_angle, regrasp2_angle;
+        int regrasp2_node1, regrasp2_node2;
 
         std::vector<std::vector<std::pair<int, int>>> regrasping_candidate_nodes; //for the 1st and 2nd gripper, all the good nodes for regrasping (regrasp area)
+        std::map<std::pair<int, int>, double> regrasp_poses_distance_values; //a regrasp pose is defined by two points on the object's surface 
 
         std::string ray_tracing_service_name;
         std::string angle_collision_service_name;

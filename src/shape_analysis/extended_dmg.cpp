@@ -218,6 +218,26 @@ int ExtendedDMG::compute_extended_path(int finger_id){
     nodes_distances_from_regrasps=weight_regrasping_area(release_contact_1, release_contact_2, regrasp1_principal, regrasp1_secondary);
     std::cout<<"--done!"<<std::endl;
 
+    //check if there is at least one possible pose! If not, movements of the fingers must be considered. For now, return -1
+    if(regrasp_poses_distance_values.size()<1){
+        std::cout<<"No valid regrasp poses are directly achievable. More in-hand motions are required."<<std::endl;
+        return -1;
+    }
+    //now get the regrasp pose with max value (las element in the map)
+    std::map<std::pair<int, int>, double>::reverse_iterator r_it=regrasp_poses_distance_values.rbegin();
+
+    //TODO additional checks for the angle are needed, but for now just get the position, not the orientation
+    regrasp2_node1=(*r_it).first.first;
+    regrasp2_node2=(*r_it).first.second;
+    //store the values in eigen vectors:
+    regrasp2_principal(0)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node1]).x;
+    regrasp2_principal(1)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node1]).y;
+    regrasp2_principal(2)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node1]).z;
+
+    regrasp2_secondary(0)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node2]).x;
+    regrasp2_secondary(1)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node2]).y;
+    regrasp2_secondary(2)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node2]).z;
+
     return 1;
 }
 
@@ -597,6 +617,7 @@ std::map<int, double> ExtendedDMG::weight_regrasping_area(Eigen::Vector3f releas
                         if(distance>0.5){
                             //in this case the intersection is not the current considered point!
                             if(distance<max_fingers_opening_mm){
+                                double cumulative_d=0;
                                 //then this node is good for being regrasped
                                 if(regrasp_area_values.count(int(n))<1){
                                     //distance between this node and the grasp line
@@ -609,6 +630,7 @@ std::map<int, double> ExtendedDMG::weight_regrasping_area(Eigen::Vector3f releas
                                     }
 
                                     regrasp_area_values.insert(std::pair<int, double>(n, d_value));
+                                    cumulative_d=d_value;
                                     for(int angle_comp:node_to_angle_components.at(n)){
                                         regrasping_candidate_nodes[1].push_back(std::pair<int, int>(n, angle_comp));
                                     }
@@ -625,9 +647,12 @@ std::map<int, double> ExtendedDMG::weight_regrasping_area(Eigen::Vector3f releas
                                     }
 
                                     regrasp_area_values.insert(std::pair<int, double>(opposite_node, d_value));
+                                    cumulative_d+=d_value;
                                     for(int angle_comp:node_to_angle_components.at(opposite_node)){
                                         regrasping_candidate_nodes[1].push_back(std::pair<int, int>(opposite_node, angle_comp));
                                     }
+                                    //put these two points (without angle component for now) in the regrasp value map
+                                    regrasp_poses_distance_values[std::pair<int, int>(n, opposite_node)]=cumulative_d;
                                 }
                             }
                             else{
@@ -679,7 +704,13 @@ void ExtendedDMG::visualize_results(){
     for(std::pair<int, int> n:regrasping_candidate_nodes[1]){
         //now check the distance and normalize it w.r.t. the maximum value of the bounding box
         radius=10.0*nodes_distances_from_regrasps.at(n.first)/normalizing_factor;
-        regrasp_viewer->addSphere(all_centroids_cloud->at(supervoxel_to_pc_idx.at(n.first)), radius, 0.0, 0.0, 1.0, "node_"+std::to_string(n.first));        
+        //if this node is one of the two that are perfect candidates for regrasping, then put them in yellow
+        if(n.first==regrasp2_node1||n.first==regrasp2_node2){
+            regrasp_viewer->addSphere(all_centroids_cloud->at(supervoxel_to_pc_idx.at(n.first)), radius, 1.0, 1.0, 0.0, "node_"+std::to_string(n.first));
+        }
+        else{
+            regrasp_viewer->addSphere(all_centroids_cloud->at(supervoxel_to_pc_idx.at(n.first)), radius, 0.0, 0.0, 1.0, "node_"+std::to_string(n.first));        
+        }
     }
 
 }
