@@ -206,8 +206,6 @@ namespace shape_analysis{
         */
         std::map<int, double> weight_regrasping_area(Eigen::Vector3f release_contact_1, Eigen::Vector3f release_contact_2, Eigen::Vector3f regrasp_contact_1, Eigen::Vector3f regrasp_contact_2);
 
-
-
         //regrasp 1st gripper, regrasp 2nd gripper
         Eigen::Vector3f regrasp1_principal, regrasp2_principal; //for the principal contact point
         Eigen::Vector3f regrasp1_secondary, regrasp2_secondary; //for the secondary contact point

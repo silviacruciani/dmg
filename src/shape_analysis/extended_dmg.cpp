@@ -237,8 +237,8 @@ int ExtendedDMG::compute_extended_path(int finger_id){
             regrasp2_node1=r_it->first.first;
             regrasp2_node2=r_it->first.second;
         }
-
     }
+
     //store the values in eigen vectors:
     regrasp2_principal(0)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node1]).x;
     regrasp2_principal(1)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node1]).y;
@@ -247,6 +247,10 @@ int ExtendedDMG::compute_extended_path(int finger_id){
     regrasp2_secondary(0)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node2]).x;
     regrasp2_secondary(1)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node2]).y;
     regrasp2_secondary(2)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node2]).z;
+
+    //check if this pose is free of collision! Otherwise:
+    // 1) move the release point
+    // 2) move the 2nd gripper
 
     return 1;
 }
@@ -630,17 +634,19 @@ std::map<int, double> ExtendedDMG::weight_regrasping_area(Eigen::Vector3f releas
                                 double cumulative_d=0;
                                 //then this node is good for being regrasped
                                 if(regrasp_area_values.count(int(n))<1){
-                                    //distance between this node and the grasp line
+                                    //distance between this node and the grasp line 
                                     double node_distance_1=((c-release_contact_1).cross((c-release_contact_2))).norm()/(release_contact_2-release_contact_1).norm();
                                     double node_distance_2=((c-regrasp_contact_1).cross((c-regrasp_contact_2))).norm()/(regrasp_contact_2-regrasp_contact_1).norm();
                                     double d_value=node_distance_1+node_distance_2;
+                                    double d_diff=fabs(node_distance_1-node_distance_2);
                                     //if one of the distances is too close, then put 0 as value
                                     if(node_distance_1<regrasp_distance_threshold||node_distance_2<regrasp_distance_threshold){
                                         d_value=0.0;
+                                        d_diff=0.0;
                                     }
-
-                                    regrasp_area_values.insert(std::pair<int, double>(n, d_value));
-                                    cumulative_d=d_value;
+                                    double val=std::max(0.0, d_value-1.2*d_diff);
+                                    regrasp_area_values.insert(std::pair<int, double>(n, val));
+                                    cumulative_d=val;
                                     for(int angle_comp:node_to_angle_components.at(n)){
                                         regrasping_candidate_nodes[1].push_back(std::pair<int, int>(n, angle_comp));
                                     }
@@ -651,13 +657,15 @@ std::map<int, double> ExtendedDMG::weight_regrasping_area(Eigen::Vector3f releas
                                     double node_distance_1=((point_i-release_contact_1).cross((point_i-release_contact_2))).norm()/(release_contact_2-release_contact_1).norm();
                                     double node_distance_2=((point_i-regrasp_contact_1).cross((point_i-regrasp_contact_2))).norm()/(regrasp_contact_2-regrasp_contact_1).norm();
                                     double d_value=node_distance_1+node_distance_2;
+                                    double d_diff=fabs(node_distance_1-node_distance_2);
                                     //if one of the distances is too close, then put 0 as value
                                     if(node_distance_1<regrasp_distance_threshold||node_distance_2<regrasp_distance_threshold){
                                         d_value=0.0;
+                                        d_diff=0.0;
                                     }
-
-                                    regrasp_area_values.insert(std::pair<int, double>(opposite_node, d_value));
-                                    cumulative_d+=d_value;
+                                    double val=std::max(0.0, d_value-1.2*d_diff);
+                                    regrasp_area_values.insert(std::pair<int, double>(opposite_node, val));
+                                    cumulative_d+=val;
                                     for(int angle_comp:node_to_angle_components.at(opposite_node)){
                                         regrasping_candidate_nodes[1].push_back(std::pair<int, int>(opposite_node, angle_comp));
                                     }
@@ -821,6 +829,69 @@ Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3
     return q;
 
 }
+
+
+
+/**
+    Returns the intersections between a segment and a cylinder
+    @param segment_start the first point of the segment
+    @param segment_end the final point of the segment
+    @cylinder_start the base point of the cylinder
+    @cylinder_end the top point of the cylinder
+    @radius the radius of the cylinder
+    @return a vector with the intersections, if any 
+*/
+// std::vector<Eigen::Vector3f> get_segment_cylinder_intersection(Eigen::Vector3f segment_start, Eigen::Vector3f segemnt_end, Eigen::Vector3f cylinder_start, Eigen::Vector3f cylinder_end, double radius){
+//     //TODO first check if the segment is parallel to the cylinder, and if yes see if the distance is within the radius or not
+
+
+//     //this is taken from https://stackoverflow.com/questions/4078401/trying-to-optimize-line-vs-cylinder-intersection
+//     std::vector<Eigen::Vector3f> intersections;
+//     double cxmin, cymin, czmin, cxmax, cymax, czmax;
+    
+//     if(cylinder_start(2)<cylinder_end(2)){
+//         czmin=cylinder_start(2)-radius;
+//         czmax=cylinder_end(2)+radius;
+//     }
+//     else{
+//         czmin=cylinder_end(2)-radius;
+//         czmax=cylinder_start(2)+radius;
+//     }
+//     if(cylinder_start(1)<cylinder_end(1)){
+//         cymin=cylinder_start(1)-radius;
+//         cymax=cylinder_end(1)+radius;
+//     }
+//     else{
+//         cymin=cylinder_end(1)-radius;
+//         cymax=cylinder_start(1)+radius;
+//     }
+//     if(cylinder_start(0)<cylinder_end(0)){
+//         cxmin=cylinder_start(0)-radius;
+//         cxmax=cylinder_end(0)+radius;
+//     }
+//     else{
+//         cxmin=cylinder_end(0)-radius;
+//         cxmax=cylinder_start(0)+radius;
+//     }
+
+//     Eigen::Vector3f cylinder_AB=cylinder_end-cylinder_start;
+//     Eigen::Vector3f A0=segment_start-cylinder_start;
+//     Eigen::Vector3f A0xAB=A0.cross(cylinder_AB);
+//     Eigen::Vector3f dir=segment_end-segment_start;
+//     Eigen::Vector3f VxAB=dir.cross(cylinder_AB);
+
+//     double ab2=cylinder_AB.dot(cylinder_AB);
+//     double a=VxAB.dot(VxAB);
+//     double b=2*VxAB.dot(AOxAB);
+//     double c=AOxAB.dot(AOxAB)-(radius*radius*ab2);
+//     double d=b*b-4*a*c;
+
+//     if(d<0){
+//         return intersections; //empty
+//     }
+
+// }
+
 
 
 /**
