@@ -13,6 +13,8 @@ using namespace shape_analysis;
 
 //helper functions 
 Eigen::Matrix3f axis_angle_matrix(Eigen::Vector3f axis, double theta);
+bool are_rectangles_intersecting(std::vector<Eigen::Vector3f> rectangle_1, std::vector<Eigen::Vector3f> rectangle_2);
+
 
 ExtendedDMG::ExtendedDMG(ros::NodeHandle n) : ShapeAnalyzer(){
     r_translations=std::vector<std::vector<geometry_msgs::Point>>(3);
@@ -253,11 +255,23 @@ int ExtendedDMG::compute_extended_path(int finger_id){
     regrasp2_secondary(1)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node2]).y;
     regrasp2_secondary(2)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node2]).z;
 
-    int regrasp_angle=get_collision_free_regrasp_angle(regrasp2_principal, regrasp2_secondary, release_contact_1, release_contact_2, release_angle, regrasp1_principal, regrasp1_secondary, regrasp1_angle);
+    //check if in this regrasp point the gripper is free of collisions
+    int free_regrasp_angle=get_collision_free_regrasp_angle(regrasp2_principal, regrasp2_secondary, release_contact_1, release_contact_2, release_angle, regrasp1_principal, regrasp1_secondary, regrasp1_angle);
+    if(free_regrasp_angle>=0){
+        //there is a good collision-free angle!
+        regrasp2_angle=M_PI*float(free_regrasp_angle/180.0);
+        std::cout<<"second gripper regrasp angle: "<<regrasp2_angle<<std::endl;
+    }
+    else{
+        //A lot of TODOS
+        //for now skip
+        std::cout<<"The candidate helper regrasp is not free of collisions. More in-hand motions are required"<<std::endl;
+        return -1;
+        // 1) move the release point
+        // 2) move the 2nd gripper
+    }
 
-    //check if this pose is free of collision! Otherwise:
-    // 1) move the release point
-    // 2) move the 2nd gripper
+    
 
     return 1;
 }
@@ -838,7 +852,96 @@ Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3
 }
 
 int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_principal, Eigen::Vector3f contact1_secondary, Eigen::Vector3f point1_principal, Eigen::Vector3f point1_secondary, int grasping_angle1, Eigen::Vector3f point2_principal, Eigen::Vector3f point2_secondary, int &grasping_angle2){
-    return -1;
+    int best_possible_angle=-1;
+
+    //create the first rectangle in 3D:
+    Eigen::Vector3f v11=point1_principal;
+    Eigen::Vector3f v12=point1_secondary;
+    //for the other 2 vertices, get the normal to the surface at the 1st contact point and check the 0 angle direction
+    Eigen::Vector3f normal=get_normal_at_contact(v11);
+    Eigen::Vector3f zero_axis=get_zero_angle_direction(v11);
+    //now rotate this axis of the grasping angle around the normal
+    Eigen::Matrix3f R_axis_angle=axis_angle_matrix(normal, grasping_angle1);
+    Eigen::Vector3f direction=R_axis_angle*zero_axis; //double check if it is correct
+    //now get the two other vertices of the rectangle, from the first two along this direction at distance of finger length
+    Eigen::Vector3f v13=v12+l_finger*direction;
+    Eigen::Vector3f v14=v11+l_finger*direction;
+    std::vector<Eigen::Vector3f> rectangle1;
+    rectangle1.push_back(v11);
+    rectangle1.push_back(v12);
+    rectangle1.push_back(v13);
+    rectangle1.push_back(v14);
+
+    //create the second rectangle in 3D:
+    Eigen::Vector3f v21=point2_principal;
+    Eigen::Vector3f v22=point2_secondary;
+    //obtain the other 2 vertices with the same procedure as before:
+    normal=get_normal_at_contact(v21);
+    zero_axis=get_zero_angle_direction(v21);
+    R_axis_angle=axis_angle_matrix(normal, grasping_angle1);
+    direction=R_axis_angle*zero_axis; //double check if it is correct
+    Eigen::Vector3f v23=v22+l_finger*direction;
+    Eigen::Vector3f v24=v21+l_finger*direction;
+    std::vector<Eigen::Vector3f> rectangle2;
+    rectangle2.push_back(v21);
+    rectangle2.push_back(v22);
+    rectangle2.push_back(v23);
+    rectangle2.push_back(v24);
+
+    //Now, loop through all the possible candidate regrasping angles to check if some are collision-free
+    std::set<int> all_angles=possible_angles.at(get_supervoxel_index(contact1_principal));
+    //the first two verticese will always be the same
+    Eigen::Vector3f v31=contact1_principal;
+    Eigen::Vector3f v32=contact1_secondary;
+    normal=get_normal_at_contact(v31);
+    zero_axis=get_zero_angle_direction(v31);
+    Eigen::Vector3f v33, v34;
+    std::vector<Eigen::Vector3f> rectangle3;
+    rectangle3.push_back(v31);
+    rectangle3.push_back(v32);
+    rectangle3.push_back(v33);
+    rectangle3.push_back(v34);
+    float max_clearence=0;
+    // std::cout<<"ALL ANGLES: "<<all_angles.size()<<std::endl;
+    for(int alpha : all_angles){
+        // std::cout<<" ... testing: "<<alpha;
+        //the second vertices depend on the current angle. Obtained as before
+        R_axis_angle=axis_angle_matrix(normal, M_PI*float(alpha)/180.0);
+        direction=R_axis_angle*zero_axis;
+        v33=v32+l_finger*direction;
+        v34=v31+l_finger*direction;
+        rectangle3[2]=v33;
+        rectangle3[3]=v34;
+
+        bool collision1=false;
+        bool collision2=false;
+        //test if it is in collision with the first rectangle:
+        collision1=are_rectangles_intersecting(rectangle1, rectangle3);
+        if(!collision1){
+            collision2=are_rectangles_intersecting(rectangle2, rectangle3);
+        }
+
+        //if both rectangles are collision-free, then we are happy and this angle is a good candidate angle!
+        if(!(collision1||collision2)){
+            //check the clearence (somehow)
+            float clearence11=std::min((v33-v13).norm(), (v33-v14).norm()); 
+            float clearence12=std::min((v34-v13).norm(), (v34-v14).norm());
+            float clearence1=std::min(clearence11, clearence12); 
+            float clearence21=std::min((v33-v23).norm(), (v33-v24).norm()); 
+            float clearence22=std::min((v34-v23).norm(), (v34-v24).norm());
+            float clearence2=std::min(clearence21, clearence22);
+            float clearence=clearence1+clearence2 - std::max(clearence1, clearence2);
+            // std::cout<<"  --clearence: "<<clearence<<std::endl;
+            if(clearence>max_clearence){
+                max_clearence=clearence;
+                best_possible_angle=alpha;
+            } 
+
+        }
+
+    }
+    //TODO check if movinde the second regrasping angle improves the situation
+    return best_possible_angle;
 }
 
 
