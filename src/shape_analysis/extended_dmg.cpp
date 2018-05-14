@@ -143,61 +143,68 @@ int ExtendedDMG::compute_extended_path(int finger_id){
     }
     int secondary_desired_angle=pose_to_angle(q, initial_contact_cc);
 
+    //to be able to directly regrasp, the desired angle should be free of collisions 
+
+    std::cout<<"checking if the desired angle is in collision"<<std::endl;
+    //collision check with the desired angle: check if the desired angle is reachable
+    angle_in_collision=is_in_collision(contact_point1, double(principal_desired_angle)*M_PI/180.0);
+    std::cout<<"is in collision: "<<angle_in_collision<<std::endl;
+    if (!angle_in_collision){
+        //check if the slave finger is also not in collision
+        std::cout<<"checking if secondary angle is also not in collisiton"<<std::endl;
+        angle_in_collision=is_in_collision(contact_point1, double(secondary_desired_angle)*M_PI/180.0);
+        std::cout<<"is in collision: "<<angle_in_collision<<std::endl;
+
+    }
 
 
     //if it is possible to directly regrasp, then we are happy and we can fill the last sequence with empty vectors
-    //otherwise, we should propagate backwards in the DMG to find a proper regrasping area (TODO)
+    //otherwise, we should propagate backwards in the DMG to find a proper regrasping area
     int regrasp1_angle=-1;
-    if(direct_regrasp_1){
-        std::cout<<"checking if the desired angle is in collision"<<std::endl;
-        //collision check with the desired angle: check if the desired angle is reachable
-        angle_in_collision=is_in_collision(contact_point1, double(principal_desired_angle)*M_PI/180.0);
-        std::cout<<"is in collision: "<<angle_in_collision<<std::endl;
-        if (!angle_in_collision){
-            //check if the slave finger is also not in collision
-            std::cout<<"checking if secondary angle is also not in collisiton"<<std::endl;
-            angle_in_collision=is_in_collision(contact_point1, double(secondary_desired_angle)*M_PI/180.0);
-            std::cout<<"is in collision: "<<angle_in_collision<<std::endl;
+    if(direct_regrasp_1&& !angle_in_collision){
+        //this is the best case
+        r_rotations[2]=std::vector<double>();
+        r_finger_distances[2]=std::vector<double>();
+        r_translations[2]=std::vector<geometry_msgs::Point>();
+        //the regrasp of the 1st gripper is exactly the desired grasp
+        regrasp1_principal=contact_point1;
+        std::cout<<"DIRECT REGRASP: "<<regrasp1_principal.transpose();
+        regrasp1_secondary=contact_point2;
+        regrasp1_angle=principal_desired_angle;
+        //add it to the list
+        int regrasp1_node=get_supervoxel_index(regrasp1_principal);
+        std::cout<<"   node: "<<regrasp1_node<<std::endl;
+        int ang_component=node_angle_to_angle_component.at(std::pair<int, int>(regrasp1_node, regrasp1_angle));
+        regrasping_candidate_nodes[0].push_back(std::pair<int, int>(regrasp1_node, ang_component));
+    }
+    else{
+        std::cout<<"MORE WORK MUST BE DONE! the 1st gripper cannot directly regrasp!"<<std::endl;
+        //call this for the first gripper
+        find_available_regrasping_points(contact_point1, contact_point2, principal_desired_angle, secondary_desired_angle, 0);
 
+        std::cout<<"Found available regrasping points for the 1st gripper!"<<std::endl;
+
+        //the first gripper must have a determined regrasp point, and so does the second gripper! for now it is only an area......
+
+        //for now use the first node available among the regrasp candidates 
+        //TODO: use all the candidates when it comes to find the 2nd gripper's regrasp
+        pcl::PointXYZRGBA p=all_centroids_cloud->at(supervoxel_to_pc_idx.at(regrasping_candidate_nodes[0][0].first));
+        regrasp1_principal<<p.x, p.y, p.z;
+        //get the first available angle:
+        regrasp1_angle=*(possible_angles.at(regrasping_candidate_nodes[0][0].first).begin());
+        //get the opposite component
+        Eigen::Vector3f regrasp_line=contact_point2-contact_point1; //direction from principal to secondary finger
+        end_point_ray=regrasp1_principal+1000.0*regrasp_line;
+        intersections=get_ray_intersections(regrasp1_principal, end_point_ray);
+        //get the intersection furthest away from the point
+        if(intersections.size()<1){
+            std::cout<<"error in the secondary contact of regrasping point: no intersections."<<std::endl;
+            return 0;
         }
-
-        if(!angle_in_collision){
-            //this is the best case
-            r_rotations[2]=std::vector<double>();
-            r_finger_distances[2]=std::vector<double>();
-            r_translations[2]=std::vector<geometry_msgs::Point>();
-            //the regrasp of the 1st gripper is exactly the desired grasp
-            regrasp1_principal=contact_point1;
-            regrasp1_secondary=contact_point2;
-            regrasp1_angle=principal_desired_angle;
-        }
-        else{
-            std::cout<<"MORE WORK MUST BE DONE! the 1st gripper cannot directly regrasp!"<<std::endl;
-            //call this for the first gripper
-            find_available_regrasping_points(contact_point1, contact_point2, principal_desired_angle, secondary_desired_angle, 0);
-
-            std::cout<<"Found available regrasping points for the 1st gripper!"<<std::endl;
-
-            //the first gripper must have a determined regrasp point, and so does the second gripper! for now it is only an area......
-
-            //for now use the first node available among the regrasp candidates
-            pcl::PointXYZRGBA p=all_centroids_cloud->at(regrasping_candidate_nodes[0][0].first);
-            regrasp1_principal<<p.x, p.y, p.z;
-            //get the opposite component
-            Eigen::Vector3f regrasp_line=contact_point2-contact_point1; //direction from principal to secondary finger
-            end_point_ray=regrasp1_principal+1000.0*regrasp_line;
-            intersections=get_ray_intersections(regrasp1_principal, end_point_ray);
-            //get the intersection furthest away from the point
-            if(intersections.size()<1){
-                std::cout<<"error in the secondary contact of regrasping point: no intersections."<<std::endl;
-                return 0;
-            }
-            regrasp1_secondary=intersections[intersections.size()-1];
-
-        }
+        regrasp1_secondary=intersections[intersections.size()-1];
 
     }
-    //shouldn't the find available regrasping points be here?
+
 
     std::cout<<"going to the second gripper processing..."<<std::endl;
     std::cout<<"angles: "<<principal_desired_angle<<"    "<<secondary_desired_angle<<std::endl;    
@@ -221,54 +228,86 @@ int ExtendedDMG::compute_extended_path(int finger_id){
     //it can be generalized "very easily" though
     std::cout<<"weighting regrasp area"<<std::endl;
 
-    //second gripper regrasping area:
-    nodes_distances_from_regrasps=weight_regrasping_area(release_contact_1, release_contact_2, regrasp1_principal, regrasp1_secondary);
-    std::cout<<"--done!"<<std::endl;
-
-    //check if there is at least one possible pose! If not, movements of the fingers must be considered. For now, return -1
-    if(regrasp_poses_distance_values.size()<1){
-        std::cout<<"No valid regrasp poses are directly achievable. More in-hand motions are required."<<std::endl;
-        return -1;
-    }
-    //now get the regrasp pose with max value (las element in the map)
-    std::map<std::pair<int, int>, double>::reverse_iterator r_it=regrasp_poses_distance_values.rbegin();
-
-    //TODO additional checks for the angle are needed, but for now just get the position, not the orientation
-    regrasp2_node1=r_it->first.first;
-    regrasp2_node2=r_it->first.second;
-    double maxit=r_it->second;
-    //TODO find a more efficient way of sorting (e.g. swap keys and values in the map)
-    for(; r_it!=regrasp_poses_distance_values.rend(); r_it++){
-        if(r_it->second>maxit){
-            maxit=r_it->second;
-            regrasp2_node1=r_it->first.first;
-            regrasp2_node2=r_it->first.second;
+    //now, we loop for all the possible contact points until we find a valid solution!
+    bool valid_configuration=false;
+    for(int idx=0; idx<regrasping_candidate_nodes[0].size() && !valid_configuration; idx++){
+        std::cout<<"Iteration: "<<idx<<std::endl;
+        //current values:
+        pcl::PointXYZRGBA p=all_centroids_cloud->at(supervoxel_to_pc_idx.at(regrasping_candidate_nodes[0][idx].first));
+        regrasp1_principal<<p.x, p.y, p.z;
+        std::cout<<"CURRENT NODE: "<<regrasping_candidate_nodes[0][idx].first<<"   i.e.   "<<regrasp1_principal.transpose()<<std::endl;
+        //get the opposite component
+        Eigen::Vector3f regrasp_line=contact_point2-contact_point1; //direction from principal to secondary finger
+        end_point_ray=regrasp1_principal+1000.0*regrasp_line;
+        intersections=get_ray_intersections(regrasp1_principal, end_point_ray);
+        //get the intersection furthest away from the point
+        if(intersections.size()<1){
+            std::cout<<"error in the secondary contact of regrasping point: no intersections."<<std::endl;
+            return 0;
         }
+        regrasp1_secondary=intersections[intersections.size()-1];
+
+
+        //second gripper regrasping area:
+        nodes_distances_from_regrasps=weight_regrasping_area(release_contact_1, release_contact_2, regrasp1_principal, regrasp1_secondary);
+        std::cout<<"--done!"<<std::endl;
+
+        //check if there is at least one possible pose! If not, movements of the fingers must be considered (TODO). For now, return -1
+        if(regrasp_poses_distance_values.size()<1){
+            std::cout<<"No valid regrasp poses are directly achievable. More in-hand motions are required."<<std::endl;
+            return -1;
+        }
+        //now get the regrasp pose with max value (las element in the map)
+        //TODO: try more than one possible value?
+        std::map<std::pair<int, int>, double>::reverse_iterator r_it=regrasp_poses_distance_values.rbegin();
+
+        //for now just get the position, not the orientation
+        regrasp2_node1=r_it->first.first;
+        regrasp2_node2=r_it->first.second;
+        double maxit=r_it->second;
+        //TODO find a more efficient way of sorting (e.g. swap keys and values in the map)
+        for(; r_it!=regrasp_poses_distance_values.rend(); r_it++){
+            if(r_it->second>maxit){
+                maxit=r_it->second;
+                regrasp2_node1=r_it->first.first;
+                regrasp2_node2=r_it->first.second;
+            }
+        }
+
+        //store the values in eigen vectors:
+        regrasp2_principal(0)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node1]).x;
+        regrasp2_principal(1)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node1]).y;
+        regrasp2_principal(2)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node1]).z;
+
+        regrasp2_secondary(0)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node2]).x;
+        regrasp2_secondary(1)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node2]).y;
+        regrasp2_secondary(2)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node2]).z;
+
+        //loop over all the possible angles (this could take time)
+        for(std::set<int>::iterator it=node_component_to_angles_subset.at(regrasping_candidate_nodes[0][idx]).begin(); it!=possible_angles.at(regrasping_candidate_nodes[0][idx].first).end(); it++){
+            regrasp1_angle=*it;
+            //check if in this regrasp point the gripper is free of collisions
+            int free_regrasp_angle=get_collision_free_regrasp_angle(regrasp2_principal, regrasp2_secondary, release_contact_1, release_contact_2, release_angle, regrasp1_principal, regrasp1_secondary, regrasp1_angle);
+            if(free_regrasp_angle>=0){
+                //there is a good collision-free angle!
+                regrasp2_angle=M_PI*float(free_regrasp_angle/180.0);
+                std::cout<<"second gripper regrasp angle: "<<regrasp2_angle<<std::endl;
+                valid_configuration=true;
+                break;
+            }
+            else{
+                //A lot of TODOS
+                //for now skip
+                //std::cout<<"The candidate helper regrasp is not free of collisions. More in-hand motions are required"<<std::endl;
+                // 1) move the 1st gripper regrasp angle (can be done in big intervals or randomly...)
+            }
+        }
+
     }
 
-    //store the values in eigen vectors:
-    regrasp2_principal(0)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node1]).x;
-    regrasp2_principal(1)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node1]).y;
-    regrasp2_principal(2)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node1]).z;
-
-    regrasp2_secondary(0)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node2]).x;
-    regrasp2_secondary(1)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node2]).y;
-    regrasp2_secondary(2)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node2]).z;
-
-    //check if in this regrasp point the gripper is free of collisions
-    int free_regrasp_angle=get_collision_free_regrasp_angle(regrasp2_principal, regrasp2_secondary, release_contact_1, release_contact_2, release_angle, regrasp1_principal, regrasp1_secondary, regrasp1_angle);
-    if(free_regrasp_angle>=0){
-        //there is a good collision-free angle!
-        regrasp2_angle=M_PI*float(free_regrasp_angle/180.0);
-        std::cout<<"second gripper regrasp angle: "<<regrasp2_angle<<std::endl;
-    }
-    else{
-        //A lot of TODOS
-        //for now skip
-        std::cout<<"The candidate helper regrasp is not free of collisions. More in-hand motions are required"<<std::endl;
+    //if after all this, no success, oh well...
+    if(!valid_configuration){
         return -1;
-        // 1) move the release point
-        // 2) move the 2nd gripper
     }
 
     
@@ -940,7 +979,7 @@ int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_princ
         }
 
     }
-    //TODO check if movinde the second regrasping angle improves the situation
+    //TODO check if moving the second regrasping angle improves the situation
     return best_possible_angle;
 }
 
