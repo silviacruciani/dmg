@@ -221,6 +221,14 @@ namespace shape_analysis{
         */
         int get_collision_free_regrasp_angle(Eigen::Vector3f contact1_principal, Eigen::Vector3f contact1_secondary, Eigen::Vector3f point1_principal, Eigen::Vector3f point1_secondary, int grasping_angle1, Eigen::Vector3f point2_principal, Eigen::Vector3f point2_secondary, int &grasping_angle2);
         
+        /**
+            Draws the regrasping poses for the fingers
+            @param name the identifier for the object in the viewer
+            @param position the 3D position (in mm)
+            @param orientation the 3D orientation
+            @param color_profile 0, 1, 2 depending on the gripper and regrasp
+        */
+        void draw_finger(std::string name, Eigen::Vector3f position, Eigen::Quaternion<float> orientation, int color_profile);
 
         //regrasp 1st gripper, regrasp 2nd gripper
         Eigen::Vector3f regrasp1_principal, regrasp2_principal; //for the principal contact point
