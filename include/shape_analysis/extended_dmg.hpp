@@ -194,7 +194,7 @@ namespace shape_analysis{
             @param principal_node the node corresponding to the principal finger
             @return a list with the opposite nodes for the secondary finger
         */
-        std::list<std::pair<int, int>> get_opposite_finger_nodes(Eigen::Vector3f direction, std::pair<int, int> principal_node);
+        std::vector<std::pair<int, int>> get_opposite_finger_nodes(Eigen::Vector3f direction, std::pair<int, int> principal_node);
 
         /**
             To each node in the graph, assigns a value according to the distance from the two grasping point of the first gripper
@@ -229,6 +229,13 @@ namespace shape_analysis{
             @param color_profile 0, 1, 2 depending on the gripper and regrasp
         */
         void draw_finger(std::string name, Eigen::Vector3f position, Eigen::Quaternion<float> orientation, int color_profile);
+
+        /**
+            Draws the given path
+            @param path the path (nodes) to draw
+            @param sequence a string to identify what sequence it is (e.g. the 1st_gripper_regrasp)
+        */
+        void draw_path(std::vector<geometry_msgs::Point> path, std::string sequence);
 
         //regrasp 1st gripper, regrasp 2nd gripper
         Eigen::Vector3f regrasp1_principal, regrasp2_principal; //for the principal contact point
