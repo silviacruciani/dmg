@@ -324,36 +324,38 @@ int ExtendedDMG::compute_extended_path(int finger_id){
     std::cout<<"Almost all is done... only final refinements! "<<std::endl;
     std::cout<<"regrasp2_secondary: "<<regrasp1_secondary.transpose()<<std::endl;
 
-    //get the path from of the regrasping thing. Only if it is not direct regrasp
-    // if(!direct_regrasp_1||angle_in_collision){
-    //     std::cout<<"computing the path to be executed after regrasp!"<<std::endl;
-    //     int regrasp1_secondary_node=get_supervoxel_index(regrasp1_secondary);
-    //     int regrasp1_angle_secondary= pose_to_angle(angle_to_pose(M_PI*float(regrasp1_angle)/180.0, regrasp1_principal), nodes_to_connected_component.at(regrasp1_secondary_node));
-    //     std::pair<std::stack<std::pair<int, int>>, std::stack<int>> regrasp_path=ShapeAnalyzer::get_extended_path(extended_refined_adjacency, get_supervoxel_index(regrasp1_principal), regrasp_node_goal1.first, contact_point2-contact_point1, std::pair<int, int>(regrasp1_secondary_node, regrasp1_angle_secondary), regrasp_node_goal2, regrasp1_angle, principal_desired_angle);
-    //     //put this into a vector for the sequence!
-    //     std::pair<int, int> idx;
-    //     int pc_idx;
-    //     std::vector<std::pair<int, int>> vector_regrasp_path;
-    //     pcl::PointXYZRGBA point;
-    //     while(regrasp_path.first.size()>0){
-    //         idx=regrasp_path.first.top();
-    //         pc_idx=regrasp_path.second.top();
-    //         regrasp_path.first.pop();
-    //         regrasp_path.second.pop();
-    //         vector_regrasp_path.push_back(idx);
-    //         point=supervoxel_clusters.at(pc_idx)->centroid_;
-    //         //put this into the final geometry msg, scales
-    //         geometry_msgs::Point p;
-    //         p.x=point.x/1000.0;
-    //         p.y=point.y/1000.0;
-    //         p.z=point.z/1000.0;
-    //         r_translations[2].push_back(p);
-    //     }
-    //     compute_extended_angle_sequence(vector_regrasp_path, finger_id, regrasp1_angle, principal_desired_angle);
-    //     r_rotations[2]=angle_sequence;
+    // get the path from of the regrasping thing. Only if it is not direct regrasp
+    if(!direct_regrasp_1||angle_in_collision){
+        std::cout<<"computing the path to be executed after regrasp!"<<std::endl;
+        int regrasp1_secondary_node=get_supervoxel_index(regrasp1_secondary);
+        int regrasp1_angle_secondary= pose_to_angle(angle_to_pose(M_PI*float(regrasp1_angle)/180.0, regrasp1_principal), nodes_to_connected_component.at(regrasp1_secondary_node));
+        int regrasp1_angle_component_secondary=node_angle_to_angle_component.at(std::pair<int, int>(regrasp1_secondary_node, regrasp1_angle_secondary));
+        std::pair<std::stack<std::pair<int, int>>, std::stack<int>> regrasp_path=ShapeAnalyzer::get_extended_path(extended_refined_adjacency, get_supervoxel_index(regrasp1_principal), regrasp_node_goal1.first, contact_point2-contact_point1, std::pair<int, int>(regrasp1_secondary_node, regrasp1_angle_component_secondary), regrasp_node_goal2, regrasp1_angle, principal_desired_angle);
+        std::cout<<"here is fine"<<std::endl;
+        //put this into a vector for the sequence!
+        std::pair<int, int> idx;
+        int pc_idx;
+        std::vector<std::pair<int, int>> vector_regrasp_path;
+        pcl::PointXYZRGBA point;
+        while(regrasp_path.first.size()>0){
+            idx=regrasp_path.first.top();
+            pc_idx=regrasp_path.second.top();
+            regrasp_path.first.pop();
+            regrasp_path.second.pop();
+            vector_regrasp_path.push_back(idx);
+            point=supervoxel_clusters.at(pc_idx)->centroid_;
+            //put this into the final geometry msg, scales
+            geometry_msgs::Point p;
+            p.x=point.x/1000.0;
+            p.y=point.y/1000.0;
+            p.z=point.z/1000.0;
+            r_translations[2].push_back(p);
+        }
+        compute_extended_angle_sequence(vector_regrasp_path, finger_id, regrasp1_angle, principal_desired_angle);
+        r_rotations[2]=angle_sequence;
 
-    //     //for now do not care about the distances
-    // }
+        //for now do not care about the distances
+    }
 
 
     
@@ -626,17 +628,25 @@ Eigen::Vector3f ExtendedDMG::get_orthogonal_axis(Eigen::Vector3f nx){
 
 int ExtendedDMG::pose_to_angle(Eigen::Quaternion<float> q, int component){
     Eigen::Matrix3f pose_gripper=q.toRotationMatrix();
+    Eigen::Matrix3f gripper_to_standard_orientation=Eigen::Matrix3f::Zero();
+    gripper_to_standard_orientation(0, 2)=1;
+    gripper_to_standard_orientation(1, 0)=1;
+    gripper_to_standard_orientation(2, 1)=1;
+
+    //this is component to base transformation
     Eigen::Matrix3f pose_component=component_pose_matrix(component);
 
-    std::cout<<std::endl<<"pose component --- reconstruction: "<<std::endl<<pose_component<<std::endl;
+    // std::cout<<std::endl<<"pose component T: "<<std::endl<<pose_component.transpose()<<std::endl<<std::endl;
+    // std::cout<<"pose gripper: "<<std::endl<<pose_gripper<<std::endl<<std::endl;
 
-    Eigen::Matrix3f gripper_to_component=pose_component.transpose()*pose_gripper;
-    std::cout<<" --- gripper to component: "<<std::endl<<gripper_to_component<<std::endl;
-    Eigen::Vector3f x_prime=gripper_to_component.block<3, 1>(0, 0);
+    Eigen::Matrix3f gripper_to_base=pose_component.transpose()*pose_gripper;
+    // std::cout<<" --- gripper to base: "<<std::endl<<gripper_to_base<<std::endl;
+    Eigen::Vector3f x_prime=gripper_to_base.block<3, 1>(0, 0);
+    // std::cout<<"given quaternion: "<<q.x()<<" "<<q.y()<<" "<<q.z()<<" "<<q.w()<<std::endl<<"  xprime: "<<x_prime.transpose()<<std::endl;
     double angle=atan2(-x_prime(2), -x_prime(1));
-    std::cout<<"angle: "<<angle<<std::endl;
+    // std::cout<<"angle: "<<angle<<std::endl;
     int int_angle=filter_angle(angle);
-    std::cout<<"int_angle: "<<int_angle<<std::endl;
+    // std::cout<<"int_angle: "<<int_angle<<std::endl;
     return int_angle;
 
 }
@@ -668,11 +678,11 @@ int ExtendedDMG::filter_angle(double angle){
         angle+=2*M_PI;
     }
     angle=angle*180.0/M_PI;
-    std::cout<<"angle degree: "<<angle<<std::endl;
+    // std::cout<<"angle degree: "<<angle<<std::endl;
     double round_angle=angle+angle_jump/2;
     int int_angle=floor(round_angle);
     int_angle=int_angle-(int_angle%angle_jump);
-    std::cout<<"int_angle: "<<int_angle<<std::endl;
+    // std::cout<<"int_angle: "<<int_angle<<std::endl;
     if(int_angle%angle_jump!=0){
         std::cout<<"ERROR IN THE ROUNDING TO "<<angle_jump<<std::endl;
     }
@@ -821,12 +831,21 @@ std::map<int, double> ExtendedDMG::weight_regrasping_area(Eigen::Vector3f releas
 void ExtendedDMG::visualize_results(){
     //first of all add the shape to the viewer
     //viewer->addModelFromPolyData(colorable_shape, "object");
-    std::cout<<"green spheres: "<<desired_pose_1.transpose()<<std::endl;
-    std::cout<<"green spheres: "<<desired_pose_2.transpose()<<std::endl;
-    std::cout<<"red spheres: "<<initial_pose_1.transpose()<<std::endl;
-    std::cout<<"red spheres: "<<initial_pose_2.transpose()<<std::endl;
-    std::cout<<"dark green spheres: "<<regrasp1_principal.transpose()<<std::endl;
-    std::cout<<"dark green spheres: "<<regrasp1_secondary.transpose()<<std::endl;
+    // std::cout<<"green spheres: "<<desired_pose_1.transpose()<<std::endl;
+    // std::cout<<"green spheres: "<<desired_pose_2.transpose()<<std::endl;
+    // std::cout<<"red spheres: "<<initial_pose_1.transpose()<<std::endl;
+    // std::cout<<"red spheres: "<<initial_pose_2.transpose()<<std::endl;
+    // std::cout<<"dark green spheres: "<<regrasp1_principal.transpose()<<std::endl;
+    // std::cout<<"dark green spheres: "<<regrasp1_secondary.transpose()<<std::endl;
+    //remove all the previously made spheres, if any
+    viewer->removeShape("goal_node_1");
+    viewer->removeShape("goal_node_2");
+    viewer->removeShape("initial_node_1");
+    viewer->removeShape("initial_node_2");
+    viewer->removeShape("regrasp1_node_1");
+    viewer->removeShape("regrasp1_node_2");
+
+
     //now add a green sphere to the goal nodes
     regrasp_viewer->addSphere(pcl::PointXYZ(desired_pose_1(0, 0)*1000.0, desired_pose_1(1, 0)*1000.0, desired_pose_1(2, 0)*1000.0), 3, 0.0, 1.0, 0.0, "goal_node_1");
     regrasp_viewer->addSphere(pcl::PointXYZ(desired_pose_2(0, 0)*1000.0, desired_pose_2(1, 0)*1000.0, desired_pose_2(2, 0)*1000.0), 3, 0.0, 1.0, 0.0, "goal_node_2");
@@ -838,25 +857,40 @@ void ExtendedDMG::visualize_results(){
     regrasp_viewer->addSphere(pcl::PointXYZ(regrasp1_secondary(0), regrasp1_secondary(1), regrasp1_secondary(2)), 3, 0.0, 0.4, 0.0, "regrasp1_node_2");
 
     //add the two initial finger poses
-    std::cout<<"initial pose 1: "<<initial_pose_1.transpose()<<std::endl;
-    std::cout<<"initial pose 2: "<<initial_pose_2.transpose()<<std::endl;
+    // std::cout<<"initial pose 1: "<<initial_pose_1.transpose()<<std::endl;
+    // std::cout<<"initial pose 2: "<<initial_pose_2.transpose()<<std::endl;
     draw_finger("finger1_principal", initial_pose_1.block<3, 1>(0, 0)*1000.0, Eigen::Quaternionf(initial_pose_1(6, 0), initial_pose_1(3, 0), initial_pose_1(4, 0), initial_pose_1(5, 0)), 0);
     draw_finger("finger1_secondary", initial_pose_2.block<3, 1>(0, 0)*1000.0, Eigen::Quaternionf(initial_pose_2(6, 0), initial_pose_2(3, 0), initial_pose_2(4, 0), initial_pose_2(5, 0)), 0);
     //add the two desired finger poses
-    std::cout<<"desired pose 1: "<<desired_pose_1.transpose()<<std::endl;
-    std::cout<<"desired pose 2: "<<desired_pose_2.transpose()<<std::endl;
+    // std::cout<<"desired pose 1: "<<desired_pose_1.transpose()<<std::endl;
+    // std::cout<<"desired pose 2: "<<desired_pose_2.transpose()<<std::endl;
     draw_finger("finger3_principal", desired_pose_1.block<3, 1>(0, 0)*1000.0, Eigen::Quaternionf(desired_pose_1(6, 0), desired_pose_1(3, 0), desired_pose_1(4, 0), desired_pose_1(5, 0)), 2);
     draw_finger("finger3_secondary", desired_pose_2.block<3, 1>(0, 0)*1000.0, Eigen::Quaternionf(desired_pose_2(6, 0), desired_pose_2(3, 0), desired_pose_2(4, 0), desired_pose_2(5, 0)), 2);
+    
     //add the regrasp pose (first, need to get the proper orientation!)
-    std::cout<<std::endl<<std::endl<<"++++++++++++++++++++++++++++++++++"<<std::endl;
-    std::cout<<"angle: "<<regrasp2_angle<<std::endl;
+    // std::cout<<std::endl<<std::endl<<"++++++++++++++++++++++++++++++++++"<<std::endl;
+    // std::cout<<"angle: "<<regrasp2_angle<<std::endl;
     Eigen::Quaternionf regrasp_orientation=angle_to_pose(regrasp2_angle, regrasp2_principal);
-    std::cout<<"reconstructed angle: "<<pose_to_angle(regrasp_orientation, nodes_to_connected_component.at(get_supervoxel_index(regrasp2_principal)));
-    std::cout<<std::endl<<std::endl<<"++++++++++++++++++++++++++++++++++"<<std::endl;
-    std::cout<<"regrasp pose 1: "<<regrasp2_principal.transpose()<<" "<<regrasp_orientation.x()<<" "<<regrasp_orientation.y()<<" "<<regrasp_orientation.z()<<" "<<regrasp_orientation.w()<<std::endl;
-    std::cout<<"regrasp pose 2: "<<regrasp2_secondary.transpose()<<" "<<regrasp_orientation.x()<<" "<<regrasp_orientation.y()<<" "<<regrasp_orientation.z()<<" "<<regrasp_orientation.w()<<std::endl;
+    // std::cout<<"reconstructed angle: "<<pose_to_angle(regrasp_orientation, nodes_to_connected_component.at(get_supervoxel_index(regrasp2_principal)));
+    // std::cout<<std::endl<<std::endl<<"++++++++++++++++++++++++++++++++++"<<std::endl;
+    // std::cout<<"regrasp pose 1: "<<regrasp2_principal.transpose()<<" "<<regrasp_orientation.x()<<" "<<regrasp_orientation.y()<<" "<<regrasp_orientation.z()<<" "<<regrasp_orientation.w()<<std::endl;
+    // std::cout<<"regrasp pose 2: "<<regrasp2_secondary.transpose()<<" "<<regrasp_orientation.x()<<" "<<regrasp_orientation.y()<<" "<<regrasp_orientation.z()<<" "<<regrasp_orientation.w()<<std::endl;
+    
     draw_finger("finger2_principal", regrasp2_principal, regrasp_orientation, 1);
     draw_finger("finger2_secondary", regrasp2_secondary, regrasp_orientation, 1);
+
+    //DEBUG
+    // std::cout<<" +++ initial pose: "<<master_initial_pose.transpose()<<std::endl;
+    // std::cout<<"  component: "<<nodes_to_connected_component.at(get_supervoxel_index(master_initial_pose.block<3, 1>(0, 0)*1000.0))<<std::endl;
+    // Eigen::Quaternionf quatquat(master_initial_pose(6, 0), master_initial_pose(3, 0), master_initial_pose(4, 0), master_initial_pose(5, 0));
+    // int initial_angle_test=pose_to_angle(quatquat, nodes_to_connected_component.at(get_supervoxel_index(master_initial_pose.block<3, 1>(0, 0)*1000.0)));
+    // std::cout<<std::endl<<" +++++ initial angle test: "<<initial_angle_test<<std::endl;
+
+    // std::cout<<"  +++desired pose: "<<master_desired_pose.transpose()<<std::endl;
+    // std::cout<<"  component: "<<nodes_to_connected_component.at(get_supervoxel_index(master_desired_pose.block<3, 1>(0, 0)*1000.0))<<std::endl;
+    // Eigen::Quaternionf quatquat2(master_desired_pose(6, 0), master_desired_pose(3, 0), master_desired_pose(4, 0), master_desired_pose(5, 0));
+    // int final_angle_test=pose_to_angle(quatquat2, nodes_to_connected_component.at(get_supervoxel_index(master_desired_pose.block<3, 1>(0, 0)*1000.0)));
+    // std::cout<<std::endl<<" +++++ final angle test: "<<final_angle_test<<std::endl;
 
     //draw the path, if there is any, for the 1st finger regrasp
     draw_path(r_translations[2], "1st_finger_regrasp");
@@ -872,11 +906,11 @@ void ExtendedDMG::visualize_results(){
         //if this node is one of the two that are perfect candidates for regrasping, then put them in yellow
         if(n.first==regrasp2_node1||n.first==regrasp2_node2){
             regrasp_viewer->addSphere(all_centroids_cloud->at(supervoxel_to_pc_idx.at(n.first)), radius, 1.0, 1.0, 0.0, "node_"+std::to_string(n.first));
-            regrasp_viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.1, "node_"+std::to_string(n.first));
+            regrasp_viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.2, "node_"+std::to_string(n.first));
         }
         else{
             // regrasp_viewer->addSphere(all_centroids_cloud->at(supervoxel_to_pc_idx.at(n.first)), radius, 0.0, 0.0, 1.0, "node_"+std::to_string(n.first));
-            // regrasp_viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.5, "node_"+std::to_string(n.first));        
+            // regrasp_viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.2, "node_"+std::to_string(n.first));        
         }
     }
 
@@ -952,14 +986,14 @@ Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3
     Eigen::Vector3f nx=get_normal_at_contact(contact);
     Eigen::Vector3f ny=get_orthogonal_axis(nx);
 
-    std::cout<<"normal: "<<nx.transpose()<<std::endl;
-    std::cout<<"ny ax : "<<ny.transpose()<<std::endl;
+    // std::cout<<"normal: "<<nx.transpose()<<std::endl;
+    // std::cout<<"ny ax : "<<ny.transpose()<<std::endl;
 
     //now rotate ny around nx of -angle
     Eigen::AngleAxis<float> aa(-angle*M_PI/180.0, nx);
     Eigen::Vector3f t_ny=aa*ny;
 
-    std::cout<<"transformed: "<<t_ny.transpose()<<std::endl;
+    // std::cout<<"transformed: "<<t_ny.transpose()<<std::endl;
 
     //get the third axis
     Eigen::Vector3f t_nz=nx.cross(t_ny);
@@ -978,23 +1012,39 @@ Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3
     component_matrix(1,2)=t_nz(1);
     component_matrix(2,2)=t_nz(2);
 
-    Eigen::Matrix3f pose_component=component_pose_matrix(nodes_to_connected_component.at(get_supervoxel_index(contact)));
+    //reorient it according to the fingers component
+    Eigen::Matrix3f component_to_finger=Eigen::Matrix3f::Zero();
+    component_to_finger(0, 1)=1;
+    component_to_finger(1, 2)=1;
+    component_to_finger(2, 0)=1;
 
-    std::cout<<"matrix generated: "<<std::endl<<component_matrix<<std::endl;
+    Eigen::Matrix3f finger_pose=component_to_finger*component_matrix*component_to_finger.transpose();
+
+    //this is component to base transformation
+    // Eigen::Matrix3f pose_component=component_pose_matrix(nodes_to_connected_component.at(get_supervoxel_index(contact)));
+
+    // std::cout<<"matrix generated: "<<std::endl<<component_matrix<<std::endl;
 
     // component_matrix.transposeInPlace();
 
-    std::cout<<"component_matrix: "<<std::endl<<pose_component<<std::endl;
+    // std::cout<<"component_matrix: "<<std::endl<<pose_component<<std::endl;
 
 
     //get the quaternion corresponding to this matrix
-    Eigen::Quaternion<float> q(component_matrix);
+    // Eigen::Quaternion<float> q(component_matrix);
+    Eigen::Quaternion<float> q(finger_pose);
     return q;
 
 }
 
 int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_principal, Eigen::Vector3f contact1_secondary, Eigen::Vector3f point1_principal, Eigen::Vector3f point1_secondary, int grasping_angle1, Eigen::Vector3f point2_principal, Eigen::Vector3f point2_secondary, int &grasping_angle2){
     int best_possible_angle=-1;
+
+    //store the set of valid angles for the secondary finger
+    std::set<int> secondary_ragrasp_valid_angles=possible_angles.at(get_supervoxel_index(contact1_secondary));
+    //store also the secondary component
+    int secondary_regrasping_cc=nodes_to_connected_component.at(get_supervoxel_index(contact1_secondary));
+
 
     //create the first rectangle in 3D:
     Eigen::Vector3f v11=point1_principal;
@@ -1046,39 +1096,52 @@ int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_princ
     float max_clearence=0;
     // std::cout<<"ALL ANGLES: "<<all_angles.size()<<std::endl;
     for(int alpha : all_angles){
-        // std::cout<<" ... testing: "<<alpha;
+        // std::cout<<std::endl;
+        // std::cout<<" ... testing: "<<alpha<<std::endl;
+
+        //check if this angle is valid in the opposite component. If not, move forward
+        Eigen::Quaternionf current_pose=angle_to_pose(alpha, contact1_principal);
+        // std::cout<<"pose: "<<current_pose.x()<<" "<<current_pose.y()<<" "<<current_pose.z()<<" "<<current_pose.w()<<std::endl;
+        int opposite_angle=pose_to_angle(current_pose, secondary_regrasping_cc);
+        // draw_finger("finger_secondary"+std::to_string(alpha), contact1_secondary, current_pose, 0);
+
+        // std::cout<<"opposite_angle: "<<opposite_angle<<std::endl;
+        if(secondary_ragrasp_valid_angles.count(opposite_angle)>0){
+
+
         //the second vertices depend on the current angle. Obtained as before
-        R_axis_angle=axis_angle_matrix(normal, M_PI*float(alpha)/180.0);
-        direction=R_axis_angle*zero_axis;
-        v33=v32+l_finger*direction;
-        v34=v31+l_finger*direction;
-        rectangle3[2]=v33;
-        rectangle3[3]=v34;
+            R_axis_angle=axis_angle_matrix(normal, M_PI*float(alpha)/180.0);
+            direction=R_axis_angle*zero_axis;
+            v33=v32+l_finger*direction;
+            v34=v31+l_finger*direction;
+            rectangle3[2]=v33;
+            rectangle3[3]=v34;
 
-        bool collision1=false;
-        bool collision2=false;
-        //test if it is in collision with the first rectangle:
-        collision1=are_rectangles_intersecting(rectangle1, rectangle3);
-        if(!collision1){
-            collision2=are_rectangles_intersecting(rectangle2, rectangle3);
-        }
+            bool collision1=false;
+            bool collision2=false;
+            //test if it is in collision with the first rectangle:
+            collision1=are_rectangles_intersecting(rectangle1, rectangle3);
+            if(!collision1){
+                collision2=are_rectangles_intersecting(rectangle2, rectangle3);
+            }
 
-        //if both rectangles are collision-free, then we are happy and this angle is a good candidate angle!
-        if(!(collision1||collision2)){
-            //check the clearence (somehow)
-            float clearence11=std::min((v33-v13).norm(), (v33-v14).norm()); 
-            float clearence12=std::min((v34-v13).norm(), (v34-v14).norm());
-            float clearence1=std::min(clearence11, clearence12); 
-            float clearence21=std::min((v33-v23).norm(), (v33-v24).norm()); 
-            float clearence22=std::min((v34-v23).norm(), (v34-v24).norm());
-            float clearence2=std::min(clearence21, clearence22);
-            float clearence=clearence1+clearence2 - std::max(clearence1, clearence2);
-            // std::cout<<"  --clearence: "<<clearence<<std::endl;
-            if(clearence>max_clearence){
-                max_clearence=clearence;
-                best_possible_angle=alpha;
-            } 
+            //if both rectangles are collision-free, then we are happy and this angle is a good candidate angle!
+            if(!(collision1||collision2)){
+                //check the clearence (somehow)
+                float clearence11=std::min((v33-v13).norm(), (v33-v14).norm()); 
+                float clearence12=std::min((v34-v13).norm(), (v34-v14).norm());
+                float clearence1=std::min(clearence11, clearence12); 
+                float clearence21=std::min((v33-v23).norm(), (v33-v24).norm()); 
+                float clearence22=std::min((v34-v23).norm(), (v34-v24).norm());
+                float clearence2=std::min(clearence21, clearence22);
+                float clearence=clearence1+clearence2 - std::max(clearence1, clearence2);
+                // std::cout<<"  --clearence: "<<clearence<<std::endl;
+                if(clearence>max_clearence){
+                    max_clearence=clearence;
+                    best_possible_angle=alpha;
+                } 
 
+            }
         }
 
     }
@@ -1113,23 +1176,38 @@ void ExtendedDMG::draw_finger(std::string name, Eigen::Vector3f position, Eigen:
     regrasp_viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, r, g, b, name);
     regrasp_viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.3, name);
 
+    Eigen::Matrix4f transf=Eigen::Matrix4f::Identity();
+    transf.block<3, 3>(0, 0)=orientation.toRotationMatrix();
+    transf.block<3,1>(0, 3)=cube_pos;
+    Eigen::Affine3f aff;
+    aff.matrix()=transf;
+    // regrasp_viewer->addCoordinateSystem(3.0, aff, "frame_"+name);
+
 }
 
 void ExtendedDMG::draw_path(std::vector<geometry_msgs::Point> path, std::string sequence){
+    //remove previous path (not done exactly correctly... store the previous number somewhere):
+    int max_line_id=std::max(r_translations[0].size(), std::max(r_translations[1].size(), r_translations[2].size()))-1;
+    for(int i=0; i<=max_line_id; i++){
+        viewer->removeShape(sequence+std::to_string(i));
+    }
     if(path.size()<2){
         return;
     }
+    std::cout<<" +++++++++++++++++ Drawing path!"<<std::endl;
     pcl::PointXYZRGBA p1, p2;
-    p1.x=path[0].x;
-    p1.y=path[0].y;
-    p1.z=path[0].z;
+    p1.x=path[0].x*1000.0;
+    p1.y=path[0].y*1000.0;
+    p1.z=path[0].z*1000.0;
 
     for(int i=1; i<path.size(); i++){
-        p2.x=path[i].x;
-        p2.y=path[i].y;
-        p2.z=path[i].z;
-        regrasp_viewer->addLine(p1, p2, 0.2, 1.0, 1.0, sequence+std::to_string(i));
-        regrasp_viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 2, sequence+std::to_string(i));
+        p2.x=path[i].x*1000.0;
+        p2.y=path[i].y*1000.0;
+        p2.z=path[i].z*1000.0;
+        std::cout<<"point1: "<<p1.x<<" "<<p1.y<<" "<<p1.z<<std::endl;
+        std::cout<<"point2: "<<p2.x<<" "<<p2.y<<" "<<p2.z<<std::endl;
+        regrasp_viewer->addLine(p1, p2, 0, 0.4, 0, sequence+std::to_string(i));
+        regrasp_viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 15, sequence+std::to_string(i));
         p1=p2;
     }   
 

@@ -89,6 +89,8 @@ namespace shape_analysis{
             Eigen::Matrix<float, 7, 1> initial_pose_2;
             Eigen::Matrix<float, 7, 1> desired_pose_1;
             Eigen::Matrix<float, 7, 1> desired_pose_2;
+            Eigen::Matrix<float, 7, 1> master_initial_pose, master_desired_pose; 
+
             //std::thread *viewer_thread;
             std::map <int, uint32_t> pc_to_supervoxel_idx;
             std::map <uint32_t, int> supervoxel_to_pc_idx;

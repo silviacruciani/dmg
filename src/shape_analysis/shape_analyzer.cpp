@@ -167,7 +167,7 @@ void ShapeAnalyzer::get_supervoxels(){
     //get the normals
     sv_normal_cloud = super.makeSupervoxelNormalCloud (supervoxel_clusters);
     std::cout<<"VoxelNormalCloud size: "<<sv_normal_cloud->points.size()<<std::endl;
-    //viewer->addPointCloudNormals<pcl::PointNormal> (sv_normal_cloud,1, 5.0, "supervoxel_normals", v1);
+    viewer->addPointCloudNormals<pcl::PointNormal> (sv_normal_cloud,1, 5.0, "supervoxel_normals", v1);
 
     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr centroids_cloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
     pcl::PointCloud<pcl::Normal>::Ptr normals_cloud(new pcl::PointCloud<pcl::Normal>);
@@ -340,10 +340,13 @@ void ShapeAnalyzer::set_initial_contact(geometry_msgs::Point p, geometry_msgs::Q
     if(finger_id==1){
         initial_centroid_idx_1=connect_centroid_to_contact(p, q, "initial centroid "+std::to_string(finger_id), true);
         initial_pose_1<<p.x, p.y, p.z, q.x, q.y, q.z, q.w;
+        master_initial_pose=initial_pose_1;
     }
     else{
         initial_centroid_idx_2=connect_centroid_to_contact(p, q, "initial centroid "+std::to_string(finger_id), true);
         initial_pose_2<<p.x, p.y, p.z, q.x, q.y, q.z, q.w;
+        master_initial_pose=initial_pose_2;
+
     }
     viewer->removeShape("initial contact "+std::to_string(finger_id));
     Eigen::Vector3f cube_pos(input.x, input.y, input.z);
@@ -352,6 +355,13 @@ void ShapeAnalyzer::set_initial_contact(geometry_msgs::Point p, geometry_msgs::Q
     //std::cout<<"matrix: "<<std::endl<<cube_rot_matrix<<std::endl;
     cube_pos=cube_pos+cube_rot_matrix*Eigen::Vector3f(-l_finger/2+1.5, 0, 0);
     viewer->addCube(cube_pos, cube_or, l_finger, 6, 6, "initial contact "+std::to_string(finger_id));
+    //add the coordinate system of the cube
+    Eigen::Matrix4f transf=Eigen::Matrix4f::Identity();
+    transf.block<3, 3>(0, 0)=cube_rot_matrix;
+    transf.block<3,1>(0, 3)=cube_pos;
+    Eigen::Affine3f aff;
+    aff.matrix()=transf;
+    viewer->addCoordinateSystem(3.0, aff, "pose_init_"+std::to_string(finger_id));
     viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 0.0, 0.0, "initial contact "+std::to_string(finger_id));
     viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.3, "initial contact "+std::to_string(finger_id));
 
@@ -367,10 +377,14 @@ void ShapeAnalyzer::set_desired_contact(geometry_msgs::Point p, geometry_msgs::Q
     if(finger_id==1){
         desired_centroid_idx_1=connect_centroid_to_contact(p, q, "desired centroid "+std::to_string(finger_id), true);
         desired_pose_1<<p.x, p.y, p.z, q.x, q.y, q.z, q.w;
+        master_desired_pose=desired_pose_1;
+
     }
     else{
         desired_centroid_idx_2=connect_centroid_to_contact(p, q, "desired centroid "+std::to_string(finger_id), true);
         desired_pose_2<<p.x, p.y, p.z, q.x, q.y, q.z, q.w;
+        master_desired_pose=desired_pose_2;
+
     }
     viewer->removeShape("desired contact "+std::to_string(finger_id));
     Eigen::Vector3f cube_pos(input.x, input.y, input.z);
@@ -378,6 +392,12 @@ void ShapeAnalyzer::set_desired_contact(geometry_msgs::Point p, geometry_msgs::Q
     Eigen::Matrix3f cube_rot_matrix=cube_or.toRotationMatrix();
     cube_pos=cube_pos+cube_rot_matrix*Eigen::Vector3f(-l_finger/2+1.5, 0, 0);
     viewer->addCube(cube_pos, cube_or, l_finger, 6, 6, "desired contact "+std::to_string(finger_id));
+    Eigen::Matrix4f transf=Eigen::Matrix4f::Identity();
+    transf.block<3, 3>(0, 0)=cube_rot_matrix;
+    transf.block<3,1>(0, 3)=cube_pos;
+    Eigen::Affine3f aff;
+    aff.matrix()=transf;
+    viewer->addCoordinateSystem(3.0, aff, "pose_des_"+std::to_string(finger_id));
     viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 1.0, 0.0, "desired contact "+std::to_string(finger_id));
     viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.3, "desired contact "+std::to_string(finger_id));
 
@@ -1077,12 +1097,12 @@ void ShapeAnalyzer::refine_adjacency(){
                     }
                 }
                 //if(idx == 1 && component== 0){
-                if(false){
+                if(true){
                 //if(nodes[idx] == 53 || nodes[idx] == 58 || nodes[idx] == 55 || nodes[idx] ==114){
                 //if(component == 18){
-                    std::cout<<"==========idx: "<<idx<<std::endl;
-                    std::cout<<"=================== node: "<<nodes[idx]<<std::endl;
-                    std::cout<<"inwards normal: "<<inwards_normal<<std::endl;
+                    //std::cout<<"==========idx: "<<idx<<std::endl;
+                    //std::cout<<"=================== node: "<<nodes[idx]<<std::endl;
+                    //std::cout<<"inwards normal: "<<inwards_normal<<std::endl;
                     //add the neighbor pointcloud to the viewer
                     std::stringstream ss;
                     ss<<"neighbor_" <<nodes[idx];
@@ -2040,6 +2060,7 @@ std::pair<std::pair<int, int>, std::pair<int, int>> ShapeAnalyzer::get_int_angle
     }
 
     int initial_contact_connected_component=nodes_to_connected_component.at(initial_contact_index);
+    std::cout<<" +++ initial cc: "<<initial_contact_connected_component<<std::endl;
     int slave_initial_contact_connected_component=nodes_to_connected_component.at(slave_initial_contact_index);
     Eigen::Vector3f component_normal=component_to_average_normal.at(initial_contact_connected_component);
     Eigen::Vector3f slave_component_normal=component_to_average_normal.at(slave_initial_contact_connected_component);
@@ -2141,6 +2162,7 @@ std::pair<std::pair<int, int>, std::pair<int, int>> ShapeAnalyzer::get_int_angle
     //now get the vector Z' of the gripper expressed in the component's reference frame
     Eigen::Matrix3f initial_gripper_to_component=component_to_base.transpose()*initial_gripper_to_base;
     Eigen::Matrix3f desired_gripper_to_component=component_to_base.transpose()*desired_gripper_to_base;
+    //ERROR???? What if the desired gripper is not in the same component?
 
     Eigen::Matrix3f slave_initial_gripper_to_component=slave_component_to_base.transpose()*slave_initial_gripper_to_base;
     Eigen::Matrix3f slave_desired_gripper_to_component=slave_component_to_base.transpose()*slave_desired_gripper_to_base;
@@ -2150,13 +2172,13 @@ std::pair<std::pair<int, int>, std::pair<int, int>> ShapeAnalyzer::get_int_angle
 
     //the first column of the matrix is the x vector of the gripper. this one has to be inverted and then the angle w.r.t. the y axis of the gripper can be found
     Eigen::Vector3f x_prime=initial_gripper_to_component.block<3, 1>(0, 0);
-    //std::cout<<"x_prime init: "<<x_prime.transpose()<<std::endl;
+    std::cout<<"x_prime init: "<<x_prime.transpose()<<std::endl;
     double initial_angle=atan2(-x_prime(2), -x_prime(1));
     if (initial_angle<0){
         initial_angle+=2*M_PI;
     }
     x_prime=desired_gripper_to_component.block<3, 1>(0, 0);
-    //std::cout<<"x_prime des: "<<x_prime.transpose()<<std::endl;
+    std::cout<<"x_prime des: "<<x_prime.transpose()<<std::endl;
     double desired_angle=atan2(-x_prime(2), -x_prime(1));
     if (desired_angle<0){
         desired_angle+=2*M_PI;
