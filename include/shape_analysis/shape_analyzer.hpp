@@ -40,7 +40,7 @@ namespace shape_analysis{
             void set_initial_contact(geometry_msgs::Point p, geometry_msgs::Quaternion q, int finger_id);
             void set_desired_contact(geometry_msgs::Point p, geometry_msgs::Quaternion q, int finger_id);
             void compute_path(int finger_id);
-            void compute_extended_path(int finger_id);
+            bool compute_extended_path(int finger_id);
             void set_finger_length(double l);
             void refine_adjacency(); //this checks for simple collisions with the gripper
             void set_supervoxel_parameters(float voxel_res, float seed_res, float color_imp, float spatial_imp, float normal_imp, bool disable_transf, int refinement_its);
@@ -48,7 +48,7 @@ namespace shape_analysis{
             std::vector<double> get_angle_sequence();
             std::vector<double> get_distance_sequence();
 
-        private:
+        protected:
             void addSupervoxelConnectionsToViewer(pcl::PointXYZRGBA &supervoxel_center,
                                   pcl::PointCloud<pcl::PointXYZRGBA> &adjacent_supervoxel_centers,
                                   std::string supervoxel_name,
@@ -65,10 +65,12 @@ namespace shape_analysis{
             void generate_connected_components_list_of_extended_refined_adjacency();
             std::pair<std::pair<int, int>, std::pair<int, int>> get_int_angles(int finger_id);
             
+            std::string object_name;
+
             double l_finger;
             pcl::PointCloud<pcl::PointXYZ>::Ptr object_shape;
             pcl::visualization::PCLVisualizer *viewer;
-            int v1, v2; //viewports
+            int v1, v2, v3; //viewports
             std::map <uint32_t, pcl::Supervoxel<pcl::PointXYZRGBA>::Ptr > supervoxel_clusters;
             pcl::PointCloud<pcl::PointXYZRGBA>::Ptr voxel_centroid_cloud;
             pcl::PointCloud<pcl::PointXYZL>::Ptr labeled_voxel_cloud;
@@ -87,6 +89,8 @@ namespace shape_analysis{
             Eigen::Matrix<float, 7, 1> initial_pose_2;
             Eigen::Matrix<float, 7, 1> desired_pose_1;
             Eigen::Matrix<float, 7, 1> desired_pose_2;
+            Eigen::Matrix<float, 7, 1> master_initial_pose, master_desired_pose; 
+
             //std::thread *viewer_thread;
             std::map <int, uint32_t> pc_to_supervoxel_idx;
             std::map <uint32_t, int> supervoxel_to_pc_idx;
@@ -124,6 +128,9 @@ namespace shape_analysis{
             int num_extended_connected_components;
             std::map<std::pair<int, int>, int> extended_nodes_to_connected_component;
             std::map<std::pair<int, int>, double> extended_node_to_slave_distance;
+
+            //mesh for visualization
+            vtkSmartPointer<vtkPolyData> colorable_shape;
 
     };
 }

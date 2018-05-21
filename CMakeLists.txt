@@ -62,6 +62,9 @@ find_package(PCL 1.8 REQUIRED)
  add_service_files(
    FILES
    InHandPath.srv
+   ExtendedInHandPath.srv
+   RayTracing.srv
+   CollisionCheck.srv
 #   Service1.srv
 #   Service2.srv
  )
@@ -135,6 +138,7 @@ include_directories(
 # )
 
 add_library(shape_analyzer src/${PROJECT_NAME}/shape_analyzer.cpp)
+add_library(extended_dmg src/${PROJECT_NAME}/extended_dmg.cpp)
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
@@ -147,6 +151,7 @@ add_library(shape_analyzer src/${PROJECT_NAME}/shape_analyzer.cpp)
 # add_executable(${PROJECT_NAME}_node src/shape_analysis_node.cpp)
 add_executable(shape_analysis src/shape_analysis.cpp)
 add_executable(in_hand_path_server src/in_hand_path_server.cpp)
+add_executable(extendedDMG_server src/extendedDMG_server.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -166,6 +171,8 @@ add_executable(in_hand_path_server src/in_hand_path_server.cpp)
 target_link_libraries(shape_analyzer ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${Eigen_LIBRARIES})
 target_link_libraries(shape_analysis shape_analyzer ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${Eigen_LIBRARIES})
 target_link_libraries(in_hand_path_server shape_analyzer ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${Eigen_LIBRARIES})
+target_link_libraries(extended_dmg shape_analyzer ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${Eigen_LIBRARIES})
+target_link_libraries(extendedDMG_server extended_dmg shape_analyzer ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${Eigen_LIBRARIES})
 
 #############
 ## Install ##
