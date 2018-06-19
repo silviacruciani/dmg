@@ -130,6 +130,7 @@ int ExtendedDMG::compute_extended_path(int finger_id){
         q=Eigen::Quaternion<float>(initial_pose_2(6), initial_pose_2(3), initial_pose_2(4), initial_pose_2(5));
     }
 
+    std::cout<<"checking principal desired angle "<<std::endl;
     int principal_desired_angle=pose_to_angle(q, initial_contact_cc);
 
     //get also the angle of the secondary finger at the desired pose
@@ -141,6 +142,7 @@ int ExtendedDMG::compute_extended_path(int finger_id){
         initial_contact_cc=nodes_to_connected_component.at(initial_centroid_idx_1);
         q=Eigen::Quaternion<float>(initial_pose_1(6), initial_pose_1(3), initial_pose_1(4), initial_pose_1(5));
     }
+    std::cout<<"checking secondary desired angle "<<std::endl;
     int secondary_desired_angle=pose_to_angle(q, initial_contact_cc);
 
     //to be able to directly regrasp, the desired angle should be free of collisions 
@@ -183,6 +185,7 @@ int ExtendedDMG::compute_extended_path(int finger_id){
         find_available_regrasping_points(contact_point1, contact_point2, principal_desired_angle, secondary_desired_angle, 0);
 
         std::cout<<"Found available regrasping points for the 1st gripper!"<<std::endl;
+        std::cout<<"candidate node[0][0]: "<<regrasping_candidate_nodes[0][0].first<<std::endl;
 
         //the first gripper must have a determined regrasp point, and so does the second gripper! for now it is only an area......
 
@@ -468,7 +471,14 @@ void ExtendedDMG::find_available_regrasping_points(Eigen::Vector3f principal_con
     //get the closest node to the principal contact point
     int principal_supervoxel_idx=get_supervoxel_index(principal_contact);
     //get the index of the angle component
-    // std::cout<<"principal angle: "<<principal_angle<<std::endl;
+    std::cout<<"principal angle: "<<principal_angle<<std::endl;
+    std::cout<<"secondary angle: "<<secondary_angle<<std::endl;
+    std::cout<<"supervoxel_idx: "<<principal_supervoxel_idx<<std::endl;
+    std::cout<<"Angles here: ";
+    for (auto a: possible_angles.at(principal_supervoxel_idx)){
+        std::cout<<a<<"  ";
+    }
+    std::cout<<std::endl;
     int principal_angle_component=node_angle_to_angle_component.at(std::pair<int, int>(principal_supervoxel_idx, principal_angle));
     // std::cout<<"here in the processing: 2"<<std::endl;
 
@@ -497,28 +507,32 @@ void ExtendedDMG::find_available_regrasping_points(Eigen::Vector3f principal_con
         std::pair<int, int> n=Q.front();
         Q.pop(); //remove the first element, that is now n
         //visit all the children (neighbor of n)
-        std::multimap<std::pair<int, int>, std::pair<int, int>>::iterator label_itr=extended_refined_adjacency.begin();
+        std::multimap<std::pair<int, int>, std::pair<int, int>>::iterator label_itr=extended_refined_adjacency.equal_range(n).first;
         // std::cout<<"here in the processing: 6"<<std::endl;
-        for ( ; label_itr!=extended_refined_adjacency.end(); label_itr++) {
-            std::pair<int, int> child=label_itr->first;
+        for ( ; label_itr!=extended_refined_adjacency.equal_range(n).second; label_itr++) {
+            std::pair<int, int> child=label_itr->second;
+            std::cout<<"child: "<<child.first<<" "<<child.second<<std::endl<<std::endl;
             //check if this child has already been explored
             if(visited_nodes.find(child)==visited_nodes.end()){
                 visited_nodes.insert(child);
+                std::cout<<"visited nodes: "<<visited_nodes.size()<<std::endl;
+                std::cout<<"Q: "<<Q.size()<<std::endl;
                 //now add this to the queue only if the secondary finger there can be in a valid configuration
                 //this can also be added only up to a certain distance from the contact, to keep the regrasping area limited (when possible)
                 // std::cout<<"here in the processing: 7"<<std::endl;
-
-                std::vector<std::pair<int, int>> secondary_nodes=get_opposite_finger_nodes(line, n);
-                // std::cout<<"node -- "<<secondary_nodes[0].first<<" "<<secondary_nodes[0].second<<std::endl;
+                std::cout<<"current node: "<<n.first<<" "<<n.second<<std::endl;
+                std::vector<std::pair<int, int>> secondary_nodes=get_opposite_finger_nodes(line, child);
+                std::cout<<"node -- "<<secondary_nodes[0].first<<" "<<secondary_nodes[0].second<<std::endl;
 
                 for(std::pair<int, int> sec_n: secondary_nodes){
                     //check if this is in the correct connected component
-                    // std::cout<<"node: "<<sec_n.first<<" "<<sec_n.second<<std::endl;
+                    std::cout<<"node: "<<sec_n.first<<" "<<sec_n.second<<std::endl;
 
                     int node_cc=extended_nodes_to_connected_component.at(sec_n);
                     // std::cout<<"here in the processing: 8"<<std::endl;
 
                     if(node_cc==secondary_cc){
+                        std::cout<<"here!!!!"<<std::endl;
                         Q.push(child);
                         //check if child is good for regrasping, and if yes add it to a set of candidates to define the regraspable area
                         Eigen::Vector3f contact_point1;
@@ -556,7 +570,7 @@ void ExtendedDMG::find_available_regrasping_points(Eigen::Vector3f principal_con
 
                         //now, if this child is valid, we can add it to the regrasp area of the corresponding gripper.
                         if(add_point){
-                            // std::cout<<"adding point: "<<contact_point1.transpose()<<std::endl;
+                            std::cout<<"+++++ adding point: "<<contact_point1.transpose()<<std::endl;
                             regrasping_candidate_nodes[gripper_id].push_back(child);
                         }
                     }
@@ -629,9 +643,23 @@ Eigen::Vector3f ExtendedDMG::get_orthogonal_axis(Eigen::Vector3f nx){
 int ExtendedDMG::pose_to_angle(Eigen::Quaternion<float> q, int component){
     Eigen::Matrix3f pose_gripper=q.toRotationMatrix();
     Eigen::Matrix3f gripper_to_standard_orientation=Eigen::Matrix3f::Zero();
-    gripper_to_standard_orientation(0, 2)=1;
-    gripper_to_standard_orientation(1, 0)=1;
-    gripper_to_standard_orientation(2, 1)=1;
+    //check if the normal is inwards
+    Eigen::Vector3f normal=component_to_average_normal.at(component);
+    pcl::PointXYZRGBA center=all_centroids_cloud->at(supervoxel_to_pc_idx.at(*(connected_component_to_set_of_nodes.at(component).begin())));
+    Eigen::Vector3f c;
+    c<<center.x, center.y, center.z;
+    bool inwards=is_normal_inwards(c, normal);
+    // std::cout<<"component: "<<component<<" inwards: "<<inwards<<std::endl;
+    if(inwards){
+        gripper_to_standard_orientation(0, 2)=-1;
+        gripper_to_standard_orientation(1, 0)=1;
+        gripper_to_standard_orientation(2, 1)=-1;
+    }
+    else{
+        gripper_to_standard_orientation(0, 2)=1;
+        gripper_to_standard_orientation(1, 0)=1;
+        gripper_to_standard_orientation(2, 1)=1;
+    }
 
     //this is component to base transformation
     Eigen::Matrix3f pose_component=component_pose_matrix(component);
@@ -645,7 +673,7 @@ int ExtendedDMG::pose_to_angle(Eigen::Quaternion<float> q, int component){
     // std::cout<<"given quaternion: "<<q.x()<<" "<<q.y()<<" "<<q.z()<<" "<<q.w()<<std::endl<<"  xprime: "<<x_prime.transpose()<<std::endl;
     double angle=atan2(-x_prime(2), -x_prime(1));
     // std::cout<<"angle: "<<angle<<std::endl;
-    int int_angle=filter_angle(angle);
+    int int_angle=filter_angle(angle + M_PI);
     // std::cout<<"int_angle: "<<int_angle<<std::endl;
     return int_angle;
 
@@ -943,10 +971,10 @@ bool ExtendedDMG::is_normal_inwards(Eigen::Vector3f contact, Eigen::Vector3f nor
     intersections=get_ray_intersections(contact, contact + 1000*normal);
     //if the intersections from the surface, along the normal, are even, the normal is outwards, otherwise inwards
     if(intersections.size()%2==0){
-    std::cout<<"the normal is outwards"<<std::endl;
+    // std::cout<<"the normal is outwards"<<std::endl;
         return false;
     }
-    std::cout<<"the normal is inwards"<<std::endl;
+    // std::cout<<"the normal is inwards"<<std::endl;
     return true;
 
 }
@@ -1217,6 +1245,7 @@ void ExtendedDMG::draw_path(std::vector<geometry_msgs::Point> path, std::string 
 
 
 
+
 /**
     Returns the intersections between a segment and a cylinder
     @param segment_start the first point of the segment
@@ -1440,3 +1469,5 @@ bool are_rectangles_intersecting(std::vector<Eigen::Vector3f> rectangle_1, std::
 
     return false;
 }
+
+

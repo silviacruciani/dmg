@@ -5,7 +5,7 @@
     <arg name="file_path" default="$(find shape_analysis)/shapes/"/>
     <arg name="fingers_length" default="0.04"/>
     <arg name="voxel_res" default="1.0"/>
-    <arg name="seed_res" default="15.0"/>
+    <arg name="seed_res" default="10.0"/>
     <arg name="color_imp" default="0.0"/>
     <arg name="spatial_imp" default="1.0"/>
     <arg name="normal_imp" default="1.0"/>
@@ -17,7 +17,7 @@
     <include file="$(find shape_analysis)/launch/help_servers.launch"/>
 
     <!-- run the generation of the dmg-->
-    <node pkg="shape_analysis" type="extendedDMG_server" name="DMG_server" output="screen">
+    <node pkg="shape_analysis" type="extendedDMG_server" name="extendedDMG_server" output="screen">
         <param name="object_name" value="$(arg object_file)"/>
         <param name="object_file_path" value="$(arg file_path)"/>
         <param name="finger_length" value="$(arg fingers_length)"/>

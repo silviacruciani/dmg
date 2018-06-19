@@ -1097,9 +1097,9 @@ void ShapeAnalyzer::refine_adjacency(){
                     }
                 }
                 //if(idx == 1 && component== 0){
-                if(true){
+                //if(true){
                 //if(nodes[idx] == 53 || nodes[idx] == 58 || nodes[idx] == 55 || nodes[idx] ==114){
-                //if(component == 18){
+                if(nodes[idx] == 65){
                     //std::cout<<"==========idx: "<<idx<<std::endl;
                     //std::cout<<"=================== node: "<<nodes[idx]<<std::endl;
                     //std::cout<<"inwards normal: "<<inwards_normal<<std::endl;
@@ -1541,9 +1541,9 @@ void ShapeAnalyzer::generate_angles_components_structures(int node_id){
 
     //loop through the angles in the possible angle set
     std::set<int> node_angles=possible_angles.at(node_id);
-    if (false)
-    //if(node_id == 114)
-        std::cout<<" +++++ 114 set size: "<<possible_angles.size()<<std::endl;
+    //if (false)
+    // if(node_id == 62)
+        // std::cout<<" +++++ 62 set size: "<<node_angles.size()<<std::endl;
     std::vector<int> all_angle_components;
     //the std::set is ordered from low to high (lucky us)
     //start the first component, proceed until there is a jump of more than 5 degrees (angle_jump), then start a new component
@@ -1569,19 +1569,21 @@ void ShapeAnalyzer::generate_angles_components_structures(int node_id){
     //std::cout<<"components: "<<angle_component<<" ";
     //std::cout<<"----------debug"<<std::endl;
     for(; it!=node_angles.end(); it++){
-        //std::cout<<*it<<" ";
+        // if(node_id == 62)
+            // std::cout<<*it<<" ";
         //check if there has been a bigger jump than angle_jump (all the angles are positive and as said the set is ordered)
         if((*it-prev_angle)>angle_jump){
             //add the angles obtained so far to the structure
             //node_angle_to_connected_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>*>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
             all_angle_components.push_back(angle_component);
-            if (false)
-            //if(node_id == 114)
-                std::cout<<"++++++ 114 inserting component: "<<angle_component<<" of size: "<<component_angles_subset.size()<<std::endl;
+            //if (false)
+            // if(node_id == 62)
+                // std::cout<<"++++++ 62 inserting component: "<<angle_component<<" of size: "<<component_angles_subset.size()<<std::endl;
             node_component_to_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
             //advance the component
             angle_component++;
-            //std::cout<<angle_component<<" ";
+            // if(node_id == 62)
+                // std::cout<<angle_component<<" ";
             //clear the subset angles and add the current angle to it
             component_angles_subset=std::set<int>();    
         }
@@ -1589,6 +1591,8 @@ void ShapeAnalyzer::generate_angles_components_structures(int node_id){
         node_angle_to_angle_component.insert(std::pair<std::pair<int, int>, int>(std::pair<int, int>(node_id, *it), angle_component));
         component_angles_subset.insert(*it);
         prev_angle=*it;
+        // if(node_id == 62)
+            // std::cout<<std::endl;
     }
     
     //check if the last component is connected to the first one (last angle 360-angle jump and first angle 0)
