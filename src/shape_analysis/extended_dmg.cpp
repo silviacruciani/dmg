@@ -660,6 +660,7 @@ int ExtendedDMG::pose_to_angle(Eigen::Quaternion<float> q, int component){
         gripper_to_standard_orientation(1, 0)=1;
         gripper_to_standard_orientation(2, 1)=1;
     }
+    //this matrix is not used because in this world everything comes in standard orientation. So perhaps remove it later!
 
     //this is component to base transformation
     Eigen::Matrix3f pose_component=component_pose_matrix(component);
@@ -725,9 +726,12 @@ std::vector<std::pair<int, int>> ExtendedDMG::get_opposite_finger_nodes(Eigen::V
     std::vector<std::pair<int, int>> output_list;
     //the current considered point
     Eigen::Vector3f current_point; 
+    std::cout<<"here: 33333"<<std::endl;
     current_point<<all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(principal_node.first)).x, 
         all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(principal_node.first)).y, 
         all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(principal_node.first)).z;
+    std::cout<<"here: 44444"<<std::endl;
+
     
     //raise this point of 1cm for the start
     Eigen::Vector3f start=current_point-10.0*direction;
@@ -736,6 +740,8 @@ std::vector<std::pair<int, int>> ExtendedDMG::get_opposite_finger_nodes(Eigen::V
 
     //get all the intersections! Many possibilities for opposite fingers sometimes
     std::vector<Eigen::Vector3f> intersections=get_ray_intersections(start, end);
+    std::cout<<"here: 555555"<<std::endl;
+
     pcl::PointXYZRGBA input;
     int K = 1;//three nearest neighbours
     std::vector<int> pointIdxNKNSearch(K);
@@ -746,9 +752,14 @@ std::vector<std::pair<int, int>> ExtendedDMG::get_opposite_finger_nodes(Eigen::V
         input.y=v(1);
         input.z=v(2);
         if(centroids_kdtree.nearestKSearch(input, K, pointIdxNKNSearch, pointNKNSquaredDistance)> 0){
-            int supervoxel_idx=pointIdxNKNSearch[0]; //there is only one
+            int supervoxel_idx=pc_to_supervoxel_idx.at(pointIdxNKNSearch[0]); //there is only one
             //TODO get the possible angular components and check if their intersection with the ranges in the principal finger is good
+            std::cout<<"here: 66666"<<std::endl;
+            std::cout<<"supervoxel: "<<supervoxel_idx<<std::endl;
+            
             std::vector<int> angle_components=node_to_angle_components.at(supervoxel_idx);
+            std::cout<<"here: 77777"<<std::endl;
+
             for(int angle_c_idx: angle_components){
                 // std::cout<<"adding node to list: "<<supervoxel_idx<<" "<<angle_c_idx<<std::endl;
                 output_list.push_back(std::pair<int, int>(supervoxel_idx, angle_c_idx));
