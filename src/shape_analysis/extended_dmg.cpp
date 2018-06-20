@@ -184,6 +184,10 @@ int ExtendedDMG::compute_extended_path(int finger_id){
         //call this for the first gripper
         find_available_regrasping_points(contact_point1, contact_point2, principal_desired_angle, secondary_desired_angle, 0);
 
+        if(regrasping_candidate_nodes.size()<1){
+            std::cout<<"could not find suitable regrasping points! :("<<std::endl;
+            return -1;
+        }
         std::cout<<"Found available regrasping points for the 1st gripper!"<<std::endl;
         std::cout<<"candidate node[0][0]: "<<regrasping_candidate_nodes[0][0].first<<std::endl;
 
@@ -726,11 +730,11 @@ std::vector<std::pair<int, int>> ExtendedDMG::get_opposite_finger_nodes(Eigen::V
     std::vector<std::pair<int, int>> output_list;
     //the current considered point
     Eigen::Vector3f current_point; 
-    std::cout<<"here: 33333"<<std::endl;
+    // std::cout<<"here: 33333"<<std::endl;
     current_point<<all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(principal_node.first)).x, 
         all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(principal_node.first)).y, 
         all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(principal_node.first)).z;
-    std::cout<<"here: 44444"<<std::endl;
+    // std::cout<<"here: 44444"<<std::endl;
 
     
     //raise this point of 1cm for the start
@@ -740,7 +744,7 @@ std::vector<std::pair<int, int>> ExtendedDMG::get_opposite_finger_nodes(Eigen::V
 
     //get all the intersections! Many possibilities for opposite fingers sometimes
     std::vector<Eigen::Vector3f> intersections=get_ray_intersections(start, end);
-    std::cout<<"here: 555555"<<std::endl;
+    // std::cout<<"here: 555555"<<std::endl;
 
     pcl::PointXYZRGBA input;
     int K = 1;//three nearest neighbours
@@ -754,11 +758,11 @@ std::vector<std::pair<int, int>> ExtendedDMG::get_opposite_finger_nodes(Eigen::V
         if(centroids_kdtree.nearestKSearch(input, K, pointIdxNKNSearch, pointNKNSquaredDistance)> 0){
             int supervoxel_idx=pc_to_supervoxel_idx.at(pointIdxNKNSearch[0]); //there is only one
             //TODO get the possible angular components and check if their intersection with the ranges in the principal finger is good
-            std::cout<<"here: 66666"<<std::endl;
-            std::cout<<"supervoxel: "<<supervoxel_idx<<std::endl;
+            // std::cout<<"here: 66666"<<std::endl;
+            // std::cout<<"supervoxel: "<<supervoxel_idx<<std::endl;
             
             std::vector<int> angle_components=node_to_angle_components.at(supervoxel_idx);
-            std::cout<<"here: 77777"<<std::endl;
+            // std::cout<<"here: 77777"<<std::endl;
 
             for(int angle_c_idx: angle_components){
                 // std::cout<<"adding node to list: "<<supervoxel_idx<<" "<<angle_c_idx<<std::endl;
