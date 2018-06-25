@@ -1057,11 +1057,12 @@ Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3
 
     //reorient it according to the fingers component
     Eigen::Matrix3f component_to_finger=Eigen::Matrix3f::Zero();
-    component_to_finger(0, 1)=1;
-    component_to_finger(1, 2)=1;
-    component_to_finger(2, 0)=1;
+    component_to_finger(0, 2)=1;
+    component_to_finger(1, 0)=-1;
+    component_to_finger(2, 1)=-1;
 
-    Eigen::Matrix3f finger_pose=component_to_finger*component_matrix*component_to_finger.transpose();
+    Eigen::Matrix3f finger_pose=component_to_finger*component_matrix;
+    // Eigen::Matrix3f finger_pose=component_to_finger*component_matrix*component_to_finger.transpose();
 
     //this is component to base transformation
     // Eigen::Matrix3f pose_component=component_pose_matrix(nodes_to_connected_component.at(get_supervoxel_index(contact)));
@@ -1224,7 +1225,7 @@ void ExtendedDMG::draw_finger(std::string name, Eigen::Vector3f position, Eigen:
     transf.block<3,1>(0, 3)=cube_pos;
     Eigen::Affine3f aff;
     aff.matrix()=transf;
-    // regrasp_viewer->addCoordinateSystem(3.0, aff, "frame_"+name);
+    regrasp_viewer->addCoordinateSystem(3.0, aff, "frame_"+name);
 
 }
 
