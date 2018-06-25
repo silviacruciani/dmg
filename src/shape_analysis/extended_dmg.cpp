@@ -60,6 +60,10 @@ void ExtendedDMG::set_object_from_pointcloud(std::string file_name){
 
 
 int ExtendedDMG::compute_extended_path(int finger_id){
+    //first of all, delete the previous translation sequences
+    r_translations=std::vector<std::vector<geometry_msgs::Point>>(3);
+    r_rotations=std::vector<std::vector<double>>(3);
+    r_finger_distances=std::vector<std::vector<double>>(3);
     bool no_regrasp=ShapeAnalyzer::compute_extended_path(finger_id);
     std::cout<<"REGRASP: "<<(!no_regrasp)<<std::endl;
     //if there is no need for regrasp, return the path for the first (and only) contact point.
@@ -911,9 +915,10 @@ void ExtendedDMG::visualize_results(){
     draw_finger("finger3_secondary", desired_pose_2.block<3, 1>(0, 0)*1000.0, Eigen::Quaternionf(desired_pose_2(6, 0), desired_pose_2(3, 0), desired_pose_2(4, 0), desired_pose_2(5, 0)), 2);
     
     //add the regrasp pose (first, need to get the proper orientation!)
-    // std::cout<<std::endl<<std::endl<<"++++++++++++++++++++++++++++++++++"<<std::endl;
-    // std::cout<<"angle: "<<regrasp2_angle<<std::endl;
-    Eigen::Quaternionf regrasp_orientation=angle_to_pose(regrasp2_angle, regrasp2_principal);
+    std::cout<<std::endl<<std::endl<<"++++++++++++++++++++++++++++++++++"<<std::endl;
+    std::cout<<"angle: "<<regrasp2_angle<<std::endl;
+    //the angle must be converted into degrees
+    Eigen::Quaternionf regrasp_orientation=angle_to_pose(regrasp2_angle*180.0/M_PI, regrasp2_principal);
     // std::cout<<"reconstructed angle: "<<pose_to_angle(regrasp_orientation, nodes_to_connected_component.at(get_supervoxel_index(regrasp2_principal)));
     // std::cout<<std::endl<<std::endl<<"++++++++++++++++++++++++++++++++++"<<std::endl;
     // std::cout<<"regrasp pose 1: "<<regrasp2_principal.transpose()<<" "<<regrasp_orientation.x()<<" "<<regrasp_orientation.y()<<" "<<regrasp_orientation.z()<<" "<<regrasp_orientation.w()<<std::endl;
@@ -1010,7 +1015,7 @@ geometry_msgs::Pose ExtendedDMG::get_regrasp_pose(int gripper){
         regrasp_angle=regrasp2_angle;
     }
 
-    Eigen::Quaternion<float> q=angle_to_pose(regrasp_angle, regrasp_point);
+    Eigen::Quaternion<float> q=angle_to_pose(regrasp_angle*180.0/M_PI, regrasp_point);
     //fill the geometry msg with the values (from mm to m)
     regrasp_pose.position.x=regrasp_point(0)/1000.0;
     regrasp_pose.position.y=regrasp_point(1)/1000.0;
@@ -1029,14 +1034,15 @@ Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3
     Eigen::Vector3f nx=get_normal_at_contact(contact);
     Eigen::Vector3f ny=get_orthogonal_axis(nx);
 
-    // std::cout<<"normal: "<<nx.transpose()<<std::endl;
-    // std::cout<<"ny ax : "<<ny.transpose()<<std::endl;
+    std::cout<<"normal: "<<nx.transpose()<<std::endl;
+    std::cout<<"ny ax : "<<ny.transpose()<<std::endl;
+    std::cout<<"angle: "<<angle<<std::endl;
 
-    //now rotate ny around nx of -angle
-    Eigen::AngleAxis<float> aa(-angle*M_PI/180.0, nx);
+    //now rotate ny around nx of angle
+    Eigen::AngleAxis<float> aa(angle*M_PI/180.0, nx);
     Eigen::Vector3f t_ny=aa*ny;
 
-    // std::cout<<"transformed: "<<t_ny.transpose()<<std::endl;
+    std::cout<<"transformed: "<<t_ny.transpose()<<std::endl;
 
     //get the third axis
     Eigen::Vector3f t_nz=nx.cross(t_ny);
@@ -1057,12 +1063,13 @@ Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3
 
     //reorient it according to the fingers component
     Eigen::Matrix3f component_to_finger=Eigen::Matrix3f::Zero();
-    component_to_finger(0, 2)=1;
-    component_to_finger(1, 0)=-1;
-    component_to_finger(2, 1)=-1;
 
-    Eigen::Matrix3f finger_pose=component_to_finger*component_matrix;
+    component_to_finger(0, 1)=-1;
+    component_to_finger(1, 2)=-1;
+    component_to_finger(2, 0)=1;
+
     // Eigen::Matrix3f finger_pose=component_to_finger*component_matrix*component_to_finger.transpose();
+    Eigen::Matrix3f finger_pose=component_to_finger*component_matrix.transpose();
 
     //this is component to base transformation
     // Eigen::Matrix3f pose_component=component_pose_matrix(nodes_to_connected_component.at(get_supervoxel_index(contact)));
