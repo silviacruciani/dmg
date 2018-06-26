@@ -833,24 +833,39 @@ std::map<int, double> ExtendedDMG::weight_regrasping_area(Eigen::Vector3f releas
                                 }
                                 //check the closest node to the intersection
                                 int opposite_node=get_supervoxel_index(point_i);
-                                if(regrasp_area_values.count(opposite_node)<1){
-                                    double node_distance_1=((point_i-release_contact_1).cross((point_i-release_contact_2))).norm()/(release_contact_2-release_contact_1).norm();
-                                    double node_distance_2=((point_i-regrasp_contact_1).cross((point_i-regrasp_contact_2))).norm()/(regrasp_contact_2-regrasp_contact_1).norm();
-                                    double d_value=node_distance_1+node_distance_2;
-                                    double d_diff=fabs(node_distance_1-node_distance_2);
-                                    //if one of the distances is too close, then put 0 as value
-                                    if(node_distance_1<regrasp_distance_threshold||node_distance_2<regrasp_distance_threshold){
-                                        d_value=0.0;
-                                        d_diff=0.0;
+                                //sanity check on the opposite node: get the two normals and see if they are too far apart (in absolute value)
+                                Eigen::Vector3f normal_opposite=component_to_average_normal.at(nodes_to_connected_component.at(opposite_node));
+                                Eigen::Vector3f normal_n=component_to_average_normal.at(nodes_to_connected_component.at(n));
+                                //get the angle between the vectors
+                                double cos_angle=normal_n.dot(normal_opposite)/(normal_opposite.norm()*normal_n.norm());
+                                if((fabs(acos(cos_angle))<0.08) || (fabs(acos(cos_angle)-M_PI)<0.08)){
+                                    std::cout<<"---------------   VALID OPPOSITE COMPONENT FOUND"<<std::endl;
+                                    if(regrasp_area_values.count(opposite_node)<1){
+                                        double node_distance_1=((point_i-release_contact_1).cross((point_i-release_contact_2))).norm()/(release_contact_2-release_contact_1).norm();
+                                        double node_distance_2=((point_i-regrasp_contact_1).cross((point_i-regrasp_contact_2))).norm()/(regrasp_contact_2-regrasp_contact_1).norm();
+                                        double d_value=node_distance_1+node_distance_2;
+                                        double d_diff=fabs(node_distance_1-node_distance_2);
+                                        //if one of the distances is too close, then put 0 as value
+                                        if(node_distance_1<regrasp_distance_threshold||node_distance_2<regrasp_distance_threshold){
+                                            d_value=0.0;
+                                            d_diff=0.0;
+                                        }
+                                        double val=std::max(0.0, d_value-1.2*d_diff);
+                                        regrasp_area_values.insert(std::pair<int, double>(opposite_node, val));
+                                        cumulative_d+=val;
+                                        for(int angle_comp:node_to_angle_components.at(opposite_node)){
+                                            regrasping_candidate_nodes[1].push_back(std::pair<int, int>(opposite_node, angle_comp));
+                                        }
+                                        //put these two points (without angle component for now) in the regrasp value map
+                                        regrasp_poses_distance_values[std::pair<int, int>(n, opposite_node)]=cumulative_d;
                                     }
-                                    double val=std::max(0.0, d_value-1.2*d_diff);
-                                    regrasp_area_values.insert(std::pair<int, double>(opposite_node, val));
-                                    cumulative_d+=val;
-                                    for(int angle_comp:node_to_angle_components.at(opposite_node)){
-                                        regrasping_candidate_nodes[1].push_back(std::pair<int, int>(opposite_node, angle_comp));
+                                }
+                                //otherwise this node is not valid, but maybe the opposite component is
+                                else{
+                                    std::cout<<"------- INVALID OPPOSITE COMPONENT"<<std::endl;
+                                    if(regrasp_area_values.count(int(n))<1){
+                                        regrasp_area_values.insert(std::pair<int, double>(n, 0.0));
                                     }
-                                    //put these two points (without angle component for now) in the regrasp value map
-                                    regrasp_poses_distance_values[std::pair<int, int>(n, opposite_node)]=cumulative_d;
                                 }
                             }
                             else{
