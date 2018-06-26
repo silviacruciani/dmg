@@ -1054,7 +1054,7 @@ Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3
     std::cout<<"angle: "<<angle<<std::endl;
 
     //now rotate ny around nx of -angle
-    Eigen::AngleAxis<float> aa(-angle*M_PI/180.0, nx);
+    Eigen::AngleAxis<float> aa(angle*M_PI/180.0, nx);
     Eigen::Vector3f t_ny=aa*ny;
 
     std::cout<<"transformed: "<<t_ny.transpose()<<std::endl;
