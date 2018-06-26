@@ -942,6 +942,13 @@ void ExtendedDMG::visualize_results(){
     draw_finger("finger2_principal", regrasp2_principal, regrasp_orientation, 1);
     draw_finger("finger2_secondary", regrasp2_secondary, regrasp_orientation, 1);
 
+    std::cout<<"first gripper regrasp angle [deg]: "<<regrasp1_angle*180.0/M_PI<<std::endl; 
+
+    Eigen::Quaternionf regrasp2_orientation=angle_to_pose(regrasp1_angle*180.0/M_PI, regrasp1_principal);
+    //draw also the second regrasp (for 1st gripper)
+    draw_finger("finger4_principal", regrasp1_principal, regrasp2_orientation, 3);
+    draw_finger("finger4_secondary", regrasp1_secondary, regrasp2_orientation, 3);
+
     //DEBUG
     // std::cout<<" +++ initial pose: "<<master_initial_pose.transpose()<<std::endl;
     // std::cout<<"  component: "<<nodes_to_connected_component.at(get_supervoxel_index(master_initial_pose.block<3, 1>(0, 0)*1000.0))<<std::endl;
@@ -1054,7 +1061,7 @@ Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3
     std::cout<<"angle: "<<angle<<std::endl;
 
     //now rotate ny around nx of -angle
-    Eigen::AngleAxis<float> aa(angle*M_PI/180.0, nx);
+    Eigen::AngleAxis<float> aa(-angle*M_PI/180.0, nx);
     Eigen::Vector3f t_ny=aa*ny;
 
     std::cout<<"transformed: "<<t_ny.transpose()<<std::endl;
@@ -1079,9 +1086,17 @@ Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3
     //reorient it according to the fingers component
     Eigen::Matrix3f component_to_finger=Eigen::Matrix3f::Zero();
 
-    component_to_finger(0, 1)=-1;
+    component_to_finger(0, 1)=1;
     component_to_finger(1, 2)=-1;
-    component_to_finger(2, 0)=1;
+    component_to_finger(2, 0)=-1;
+
+    //this I am not sure if it is correct
+    // bool inwards=is_normal_inwards(contact, nx);
+    // if(!inwards){
+    //     std::cout<<"the normal is outwards!"<<std::endl;
+    //     component_to_finger(0, 1)=-1;
+    //     component_to_finger(2, 0)=1;
+    // }
 
     // Eigen::Matrix3f finger_pose=component_to_finger*component_matrix*component_to_finger.transpose();
     Eigen::Matrix3f finger_pose=(component_to_finger*component_matrix.transpose()).transpose();
@@ -1235,6 +1250,11 @@ void ExtendedDMG::draw_finger(std::string name, Eigen::Vector3f position, Eigen:
         case 2:
             r=0.0;
             g=1.0;
+            b=0.0;
+            break;
+        case 3:
+            r=0.0;
+            g=0.4;
             b=0.0;
             break;
     }
