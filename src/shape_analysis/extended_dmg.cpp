@@ -838,7 +838,7 @@ std::map<int, double> ExtendedDMG::weight_regrasping_area(Eigen::Vector3f releas
                                 Eigen::Vector3f normal_n=component_to_average_normal.at(nodes_to_connected_component.at(n));
                                 //get the angle between the vectors
                                 double cos_angle=normal_n.dot(normal_opposite)/(normal_opposite.norm()*normal_n.norm());
-                                if((fabs(acos(cos_angle))<0.08) || (fabs(acos(cos_angle)-M_PI)<0.08)){
+                                if((fabs(acos(cos_angle))<0.4) || (fabs(acos(cos_angle)-M_PI)<0.4)){
                                     std::cout<<"---------------   VALID OPPOSITE COMPONENT FOUND"<<std::endl;
                                     if(regrasp_area_values.count(opposite_node)<1){
                                         double node_distance_1=((point_i-release_contact_1).cross((point_i-release_contact_2))).norm()/(release_contact_2-release_contact_1).norm();
@@ -1053,8 +1053,8 @@ Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3
     std::cout<<"ny ax : "<<ny.transpose()<<std::endl;
     std::cout<<"angle: "<<angle<<std::endl;
 
-    //now rotate ny around nx of angle
-    Eigen::AngleAxis<float> aa(angle*M_PI/180.0, nx);
+    //now rotate ny around nx of -angle
+    Eigen::AngleAxis<float> aa(-angle*M_PI/180.0, nx);
     Eigen::Vector3f t_ny=aa*ny;
 
     std::cout<<"transformed: "<<t_ny.transpose()<<std::endl;
@@ -1084,7 +1084,7 @@ Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3
     component_to_finger(2, 0)=1;
 
     // Eigen::Matrix3f finger_pose=component_to_finger*component_matrix*component_to_finger.transpose();
-    Eigen::Matrix3f finger_pose=component_to_finger*component_matrix.transpose();
+    Eigen::Matrix3f finger_pose=(component_to_finger*component_matrix.transpose()).transpose();
 
     //this is component to base transformation
     // Eigen::Matrix3f pose_component=component_pose_matrix(nodes_to_connected_component.at(get_supervoxel_index(contact)));
