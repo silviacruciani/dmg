@@ -483,12 +483,19 @@ void ExtendedDMG::find_available_regrasping_points(Eigen::Vector3f principal_con
     std::cout<<"secondary angle: "<<secondary_angle<<std::endl;
     std::cout<<"supervoxel_idx: "<<principal_supervoxel_idx<<std::endl;
     std::cout<<"Angles here: ";
-    for (auto a: possible_angles.at(principal_supervoxel_idx)){
-        std::cout<<a<<"  ";
+    try{
+        for (auto a: possible_angles.at(principal_supervoxel_idx)){
+            std::cout<<a<<"  ";
+        }
+    }
+    catch(std::out_of_range& e){
+        std::cout<<"Missing possible angles at: "<<principal_supervoxel_idx<<std::endl;
     }
     std::cout<<std::endl;
+    std::cout<<"here in the processing: 1"<<std::endl;
+
     int principal_angle_component=node_angle_to_angle_component.at(std::pair<int, int>(principal_supervoxel_idx, principal_angle));
-    // std::cout<<"here in the processing: 2"<<std::endl;
+    std::cout<<"here in the processing: 2"<<std::endl;
 
     //get the extended connected component
     int principal_cc=extended_nodes_to_connected_component.at(std::pair<int, int>(principal_supervoxel_idx, principal_angle_component));
@@ -500,7 +507,7 @@ void ExtendedDMG::find_available_regrasping_points(Eigen::Vector3f principal_con
 
     int secondary_angle_component=node_angle_to_angle_component.at(std::pair<int, int>(secondary_supervoxel_idx, secondary_angle));
     int secondary_cc=extended_nodes_to_connected_component.at(std::pair<int, int>(secondary_supervoxel_idx, secondary_angle_component));
-    // std::cout<<"here in the processing: 4"<<std::endl;
+    std::cout<<"here in the processing: 4"<<std::endl;
 
 
     //now to a BFS starting from the given contact, until we find points from which it is possible to regrasp
@@ -509,14 +516,14 @@ void ExtendedDMG::find_available_regrasping_points(Eigen::Vector3f principal_con
     std::pair<int, int> n_init=std::pair<int, int>(principal_supervoxel_idx, principal_angle_component);
     Q.push(n_init);
     visited_nodes.insert(n_init);
-    // std::cout<<"here in the processing: 5"<<std::endl;
+    std::cout<<"here in the processing: 5"<<std::endl;
 
     while(Q.size()>0){
         std::pair<int, int> n=Q.front();
         Q.pop(); //remove the first element, that is now n
         //visit all the children (neighbor of n)
         std::multimap<std::pair<int, int>, std::pair<int, int>>::iterator label_itr=extended_refined_adjacency.equal_range(n).first;
-        // std::cout<<"here in the processing: 6"<<std::endl;
+        std::cout<<"here in the processing: 6"<<std::endl;
         for ( ; label_itr!=extended_refined_adjacency.equal_range(n).second; label_itr++) {
             std::pair<int, int> child=label_itr->second;
             std::cout<<"child: "<<child.first<<" "<<child.second<<std::endl<<std::endl;
@@ -527,7 +534,7 @@ void ExtendedDMG::find_available_regrasping_points(Eigen::Vector3f principal_con
                 std::cout<<"Q: "<<Q.size()<<std::endl;
                 //now add this to the queue only if the secondary finger there can be in a valid configuration
                 //this can also be added only up to a certain distance from the contact, to keep the regrasping area limited (when possible)
-                // std::cout<<"here in the processing: 7"<<std::endl;
+                std::cout<<"here in the processing: 7"<<std::endl;
                 std::cout<<"current node: "<<n.first<<" "<<n.second<<std::endl;
                 std::vector<std::pair<int, int>> secondary_nodes=get_opposite_finger_nodes(line, child);
                 std::cout<<"node -- "<<secondary_nodes[0].first<<" "<<secondary_nodes[0].second<<std::endl;
