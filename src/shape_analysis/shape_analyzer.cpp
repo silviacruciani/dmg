@@ -981,7 +981,7 @@ void ShapeAnalyzer::refine_adjacency(){
                 //inwards_normal=(inwards_count>outwards_count);
                 //if(nodes[idx] == 77){
                 if(false){
-                //if(component == 18){
+                // if(component == 8){
                     std::cout<<"found inwards pos, neg: "<<found_y_neg_i<<" "<<found_y_pos_i<<" "<<found_z_neg_i<<" "<<found_z_pos_i<<std::endl;
                     std::cout<<"INWARDS COUNT: "<<inwards_count<<std::endl;
                     std::cout<<"found outwards pos, neg: "<<found_y_neg_o<<" "<<found_y_pos_o<<" "<<found_z_neg_o<<" "<<found_z_pos_o<<std::endl;
@@ -998,6 +998,13 @@ void ShapeAnalyzer::refine_adjacency(){
                 else if(inwards_count > outwards_count){
                     inwards_normal=true;
                 }
+                else{
+                    inwards_normal=false;
+                }
+
+                if (false)
+                // if (component==8)
+                    std::cout<<"----    INWARDS: "<<inwards_normal<<std::endl;
                 
                 for(int i=0; i<pointIdxRadiusSearch.size(); i++){
                     //check if the distance is larger
@@ -1060,7 +1067,7 @@ void ShapeAnalyzer::refine_adjacency(){
                         Eigen::Vector3f transformed_point=R*point+translation; 
 
                         //the x axis corresponds to the normal. the ny axis corresponds to the 0 angle
-                        //check the x component: (for now assume nx is always pointing inwards from the object's center)
+                        //check the x component:
                         if( (transformed_point(0)<-3.0 && transformed_point(0)>-5.0 && inwards_normal) ||
                             (transformed_point(0)>3.0 && transformed_point(0)<5.0 && !inwards_normal) )
                             {
@@ -1097,7 +1104,7 @@ void ShapeAnalyzer::refine_adjacency(){
                     }
                 }
                 if(false){
-                //if(idx == 1 && component== 0){
+                // if(component==8){
                 //if(true){
                 //if(nodes[idx] == 53 || nodes[idx] == 58 || nodes[idx] == 55 || nodes[idx] ==114){
                 // if(nodes[idx] == 65){
@@ -1144,10 +1151,10 @@ void ShapeAnalyzer::refine_adjacency(){
         float G=float(rand()%11)/10.0;
         float B=float(rand()%11)/10.0;
 
-        std::cout<<"R: "<<R<<std::endl;
-        std::cout<<"G: "<<G<<std::endl;
-        std::cout<<"B: "<<B<<std::endl;
-        std::cout<<"----"<<std::endl;
+        // std::cout<<"R: "<<R<<std::endl;
+        // std::cout<<"G: "<<G<<std::endl;
+        // std::cout<<"B: "<<B<<std::endl;
+        // std::cout<<"----"<<std::endl;
         //get all the nodes in the component:
         std::set<uint32_t> nodes_set=connected_component_to_set_of_nodes.at(component);
         //now loop on all the nodes and check if their connections (or the node itself) have to be removed from the connected component
