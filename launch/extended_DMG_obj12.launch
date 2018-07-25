@@ -12,6 +12,7 @@
     <arg name="supervoxel_iterations" default="10"/>
     <arg name="disable_transf" default="true"/>
     <arg name="dmg_service_name" default="in_hand_path"/>
+    <arg name="normal_t" default="0.15"/>
 
     <!-- start the helper servers-->
     <include file="$(find shape_analysis)/launch/help_servers.launch"/>
@@ -29,5 +30,6 @@
         <param name="refinement_iterations" value="$(arg supervoxel_iterations)"/>
         <param name="disable_transform" value="$(arg disable_transf)"/>
         <param name="service_name" value="$(arg dmg_service_name)"/>
+        <param name="normal_threshold" value="$(arg normal_t)"/>
     </node>
 </launch>

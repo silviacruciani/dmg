@@ -29,6 +29,7 @@ ShapeAnalyzer::ShapeAnalyzer(){
     normal_importance=1.0;
     refinement_iterations=8;
     angle_jump=5;
+    normal_threshold=0.07;
 }
 
 ShapeAnalyzer::~ShapeAnalyzer(){
@@ -643,6 +644,10 @@ void ShapeAnalyzer::set_finger_length(double l){
     l_finger=l*1000.0;//in mm
 }
 
+void ShapeAnalyzer::set_normal_threshold(double t){
+    normal_threshold=t;
+}
+
 void ShapeAnalyzer::refine_adjacency(){
     //create another viewport
     int v(0);
@@ -672,7 +677,7 @@ void ShapeAnalyzer::refine_adjacency(){
             //now check if these two normals have a similar direction
             if(fabs((supervoxel_normal.normal_x-adjacent_normal.normal_x)*(supervoxel_normal.normal_x-adjacent_normal.normal_x)+
                 (supervoxel_normal.normal_y-adjacent_normal.normal_y)*(supervoxel_normal.normal_y-adjacent_normal.normal_y)+
-                (supervoxel_normal.normal_z-adjacent_normal.normal_z)*(supervoxel_normal.normal_z-adjacent_normal.normal_z))<0.07){ //check what value to put there
+                (supervoxel_normal.normal_z-adjacent_normal.normal_z)*(supervoxel_normal.normal_z-adjacent_normal.normal_z))<normal_threshold){ //check what value to put there
                 //std::cout<<"1 is here"<<std::endl;
 
                 //add this to the visualization debug
@@ -683,7 +688,7 @@ void ShapeAnalyzer::refine_adjacency(){
             //check if the normal is pointing in the opposite direction (inwards instead of outwards)
             else if(fabs((supervoxel_normal.normal_x+adjacent_normal.normal_x)*(supervoxel_normal.normal_x+adjacent_normal.normal_x)+
                 (supervoxel_normal.normal_y+adjacent_normal.normal_y)*(supervoxel_normal.normal_y+adjacent_normal.normal_y)+
-                (supervoxel_normal.normal_z+adjacent_normal.normal_z)*(supervoxel_normal.normal_z+adjacent_normal.normal_z))<0.07){
+                (supervoxel_normal.normal_z+adjacent_normal.normal_z)*(supervoxel_normal.normal_z+adjacent_normal.normal_z))<normal_threshold){
                 //std::cout<<"1 is in there"<<std::endl;
 
                 //add this to the visualization debug
@@ -1104,10 +1109,10 @@ void ShapeAnalyzer::refine_adjacency(){
                     }
                 }
                 if(false){
-                // if(component==8){
-                //if(true){
+                // if(component<8){
+                // if(true){
                 //if(nodes[idx] == 53 || nodes[idx] == 58 || nodes[idx] == 55 || nodes[idx] ==114){
-                // if(nodes[idx] == 65){
+                // if(nodes[idx] == 53){
                     //std::cout<<"==========idx: "<<idx<<std::endl;
                     //std::cout<<"=================== node: "<<nodes[idx]<<std::endl;
                     //std::cout<<"inwards normal: "<<inwards_normal<<std::endl;
@@ -1116,9 +1121,9 @@ void ShapeAnalyzer::refine_adjacency(){
                     ss<<"neighbor_" <<nodes[idx];
                     //random color
                     pcl::visualization::PointCloudColorHandlerRandom<pcl::PointXYZ> hc(neighbour_cloud);
-                    viewer->addPointCloud (neighbour_cloud, hc, ss.str(), v2);
-                    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, ss.str());
-                    viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_OPACITY,0.8, ss.str());
+                    // viewer->addPointCloud (neighbour_cloud, hc, ss.str(), v2);
+                    // viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1.0, ss.str());
+                    // viewer->setPointCloudRenderingProperties (pcl::visualization::PCL_VISUALIZER_OPACITY,0.8, ss.str());
                     viewer->addSphere(supervoxel_clusters.at(nodes[idx])->centroid_, 1, 0.0, 0.0, 1.0, "sphere"+std::to_string(nodes[idx]), v2);
                     Eigen::Matrix4f transf=Eigen::Matrix4f::Identity();
                     transf.block<3, 3>(0, 0)=R_transpose;
@@ -1133,6 +1138,9 @@ void ShapeAnalyzer::refine_adjacency(){
 
             //now add this mapping between the supervoxel and the possible angles
             possible_angles.insert(std::pair<uint32_t, std::set<int>>(nodes[idx], angles_per_node));
+            if(nodes[idx]==53){
+                std::cout<<"= = = inserting nodes set of size: "<<angles_per_node.size()<<std::endl;
+            }
             //generate the angle components data structure that will be used in Dijikstra
             generate_angles_components_structures(int(nodes[idx]));
         }
@@ -1550,8 +1558,8 @@ void ShapeAnalyzer::generate_angles_components_structures(int node_id){
     //loop through the angles in the possible angle set
     std::set<int> node_angles=possible_angles.at(node_id);
     //if (false)
-    // if(node_id == 62)
-        // std::cout<<" +++++ 62 set size: "<<node_angles.size()<<std::endl;
+    // if(node_id == 53)
+        // std::cout<<" +++++ 53 set size: "<<node_angles.size()<<std::endl;
     std::vector<int> all_angle_components;
     //the std::set is ordered from low to high (lucky us)
     //start the first component, proceed until there is a jump of more than 5 degrees (angle_jump), then start a new component
@@ -1574,10 +1582,10 @@ void ShapeAnalyzer::generate_angles_components_structures(int node_id){
         return;
     }
     it++;
-    //std::cout<<"components: "<<angle_component<<" ";
-    //std::cout<<"----------debug"<<std::endl;
+    // std::cout<<"components: "<<angle_component<<" ";
+    // std::cout<<"----------debug"<<std::endl;
     for(; it!=node_angles.end(); it++){
-        // if(node_id == 62)
+        // if(node_id == 53)
             // std::cout<<*it<<" ";
         //check if there has been a bigger jump than angle_jump (all the angles are positive and as said the set is ordered)
         if((*it-prev_angle)>angle_jump){
@@ -1585,8 +1593,8 @@ void ShapeAnalyzer::generate_angles_components_structures(int node_id){
             //node_angle_to_connected_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>*>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
             all_angle_components.push_back(angle_component);
             //if (false)
-            // if(node_id == 62)
-                // std::cout<<"++++++ 62 inserting component: "<<angle_component<<" of size: "<<component_angles_subset.size()<<std::endl;
+            // if(node_id == 53)
+                // std::cout<<"++++++ 53 inserting component: "<<angle_component<<" of size: "<<component_angles_subset.size()<<std::endl;
             node_component_to_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
             //advance the component
             angle_component++;
@@ -1598,24 +1606,26 @@ void ShapeAnalyzer::generate_angles_components_structures(int node_id){
         //insert the angle in the set and store the prev value
         node_angle_to_angle_component.insert(std::pair<std::pair<int, int>, int>(std::pair<int, int>(node_id, *it), angle_component));
         component_angles_subset.insert(*it);
+        // if(node_id == 53)
+                // std::cout<<"++++++ 53 inserting component: "<<angle_component<<" of size: "<<component_angles_subset.size()<<std::endl;
         prev_angle=*it;
-        // if(node_id == 62)
+        // if(node_id == 53)
             // std::cout<<std::endl;
     }
     
     //check if the last component is connected to the first one (last angle 360-angle jump and first angle 0)
     int last_angle=prev_angle;
     if(angle_component>0 &&first_angle==0 && last_angle==(360 - angle_jump)){
-        if (false)
-        //if(node_id == 114)
-            std::cout<<"merging"<<std::endl;
+        // if (false)
+        // if(node_id == 53)
+            // std::cout<<"merging"<<std::endl;
         //instead of adding this additional component, merge the current set with the first one
         std::set<int> first_subset=node_component_to_angles_subset.at(std::pair<int, int>(node_id, 0));
         std::set<int> union_set;
         std::set_union(first_subset.begin(), first_subset.end(), component_angles_subset.begin(), component_angles_subset.end(), std::inserter(union_set, union_set.begin()));
-        if (false)
+        // if (false)
         //if(node_id == 114)
-            std::cout<<"    inserting component: "<<angle_component<<" of size: "<<union_set.size()<<std::endl;
+            // std::cout<<"    inserting component: "<<angle_component<<" of size: "<<union_set.size()<<std::endl;
         node_component_to_angles_subset.erase(std::pair<int, int>(node_id, 0));
         node_component_to_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>>(std::pair<int, int>(node_id, 0), union_set));
         //change all the nodes in the set into the first component
@@ -1626,13 +1636,15 @@ void ShapeAnalyzer::generate_angles_components_structures(int node_id){
         return;
 
     }
+
+
     //std::cout<<std::endl;
     //add the last component
     //node_angle_to_connected_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
     all_angle_components.push_back(angle_component);
-    if (false)
+    // if (false)
     //if(node_id == 114)
-        std::cout<<"    +++inserting component: "<<angle_component<<" of size: "<<component_angles_subset.size()<<std::endl;
+        // std::cout<<"    +++inserting component: "<<angle_component<<" of size: "<<component_angles_subset.size()<<std::endl;
     node_component_to_angles_subset.insert(std::pair<std::pair<int, int>, std::set<int>>(std::pair<int, int>(node_id, angle_component), component_angles_subset));
 
     node_to_angle_components.insert(std::pair<int, std::vector<int>>(node_id, all_angle_components));
@@ -1669,6 +1681,10 @@ void ShapeAnalyzer::generate_connected_components_list_of_extended_refined_adjac
                     examined_nodes.insert(v); //for the global analysis
 
                     extended_nodes_to_connected_component.insert(std::pair<std::pair<int, int>, int>(v, component_id));
+                    // if(v.first==53){
+                        // std::cout<<"=======ADDING TO EXTENDED COMPONENT: "<<v.second<<std::endl;
+                        // std::cout<<"obtaining component: "<<extended_nodes_to_connected_component.at(std::pair<int, int>(v.first, v.second))<<std::endl;
+                    // }
 
                     //now get all the adjacent nodes
                     //std::cout<<v.first<<" "<<v.second<<std::endl;
