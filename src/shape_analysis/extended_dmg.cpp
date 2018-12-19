@@ -719,10 +719,12 @@ int ExtendedDMG::pose_to_angle(Eigen::Quaternion<float> q, int component){
     Eigen::Matrix3f gripper_to_base=pose_component.transpose()*pose_gripper;
     // std::cout<<" --- gripper to base: "<<std::endl<<gripper_to_base<<std::endl;
     Eigen::Vector3f x_prime=gripper_to_base.block<3, 1>(0, 0);
+    // std::cout<<"x prime: "<<x_prime.transpose()<<std::endl;
     // std::cout<<"given quaternion: "<<q.x()<<" "<<q.y()<<" "<<q.z()<<" "<<q.w()<<std::endl<<"  xprime: "<<x_prime.transpose()<<std::endl;
     double angle=atan2(-x_prime(2), -x_prime(1));
     // std::cout<<"angle: "<<angle<<std::endl;
-    int int_angle=filter_angle(angle + M_PI);
+    int int_angle=filter_angle(angle);
+    // int int_angle=filter_angle(angle + M_PI);
     // std::cout<<"int_angle: "<<int_angle<<std::endl;
     return int_angle;
 
@@ -1100,13 +1102,18 @@ geometry_msgs::Pose ExtendedDMG::get_regrasp_pose(int gripper){
 }
 
 Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3f contact){
-    //the nx axis corresponds to the y axis of the gripper (this could be inverted according to which finger is set as principal finger)
+    //the nx axis corresponds to the z axis of the gripper (this could be inverted according to which finger is set as principal finger)
     Eigen::Vector3f nx=get_normal_at_contact(contact);
     Eigen::Vector3f ny=get_orthogonal_axis(nx);
 
+    bool inwards=is_normal_inwards(contact, nx);
+    if(inwards){
+        angle=-angle;
+    }
+
     // std::cout<<"normal: "<<nx.transpose()<<std::endl;
     // std::cout<<"ny ax : "<<ny.transpose()<<std::endl;
-    // std::cout<<"angle: "<<angle<<std::endl;
+    // std::cout<<"angle: "<<angle<<std::endl
 
     //now rotate ny around nx of -angle
     Eigen::AngleAxis<float> aa(-angle*M_PI/180.0, nx);
@@ -1135,8 +1142,8 @@ Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3
     Eigen::Matrix3f component_to_finger=Eigen::Matrix3f::Zero();
 
     component_to_finger(0, 1)=1;
-    component_to_finger(1, 2)=-1;
-    component_to_finger(2, 0)=-1;
+    component_to_finger(1, 2)=1;
+    component_to_finger(2, 0)=1;
 
     //this I am not sure if it is correct
     // bool inwards=is_normal_inwards(contact, nx);
@@ -1170,9 +1177,15 @@ int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_princ
     int best_possible_angle=-1;
 
     //store the set of valid angles for the secondary finger
-    std::set<int> secondary_ragrasp_valid_angles=possible_angles.at(get_supervoxel_index(contact1_secondary));
+    std::set<int> secondary_regrasp_valid_angles=possible_angles.at(get_supervoxel_index(contact1_secondary));
+    // std::cout<<"valid secondary angles: :::::::";
+    // for(auto ang : secondary_regrasp_valid_angles){
+    //     std::cout<<" "<<ang;
+    // }
+    std::cout<<std::endl;
     //store also the secondary component
     int secondary_regrasping_cc=nodes_to_connected_component.at(get_supervoxel_index(contact1_secondary));
+    int principal_regrasping_cc=nodes_to_connected_component.at(get_supervoxel_index(contact1_principal));
 
 
     //create the first rectangle in 3D:
@@ -1203,6 +1216,8 @@ int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_princ
     Eigen::Vector4f control_point1;
     control_point1.block<3, 1>(0, 0)=point1_principal+finger_direction1;
     control_point1(3)=1;
+    std::cout<<"direction: "<<direction.transpose()<<std::endl;
+    std::cout<<"CONTROL sign: "<<plane.dot(control_point1)<<std::endl;
 
     //create the second rectangle in 3D:
     Eigen::Vector3f v21=point2_principal;
@@ -1222,6 +1237,10 @@ int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_princ
 
     //Now, loop through all the possible candidate regrasping angles to check if some are collision-free
     std::set<int> all_angles=possible_angles.at(get_supervoxel_index(contact1_principal));
+    // std::cout<<"valid principal angles: :::::::";
+    // for(auto ang : all_angles){
+    //     std::cout<<" "<<ang;
+    // }
     //the first two verticese will always be the same
     Eigen::Vector3f v31=contact1_principal;
     Eigen::Vector3f v32=contact1_secondary;
@@ -1242,11 +1261,13 @@ int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_princ
         //check if this angle is valid in the opposite component. If not, move forward
         Eigen::Quaternionf current_pose=angle_to_pose(alpha, contact1_principal);
         // std::cout<<"pose: "<<current_pose.x()<<" "<<current_pose.y()<<" "<<current_pose.z()<<" "<<current_pose.w()<<std::endl;
-        int opposite_angle=pose_to_angle(current_pose, secondary_regrasping_cc);
+        int opposite_angle=pose_to_angle(current_pose, principal_regrasping_cc);
+        // int opposite_angle=pose_to_angle(current_pose, secondary_regrasping_cc);
         // draw_finger("finger_secondary"+std::to_string(alpha), contact1_secondary, current_pose, 0);
 
         // std::cout<<"opposite_angle: "<<opposite_angle<<std::endl;
-        if(secondary_ragrasp_valid_angles.count(opposite_angle)>0){
+        if(secondary_regrasp_valid_angles.count(opposite_angle)>0){
+            // std::cout<<"VALID!"<<std::endl;
 
 
         //the second vertices depend on the current angle. Obtained as before
@@ -1264,6 +1285,8 @@ int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_princ
             Eigen::Vector4f control_point2;
             control_point2.block<3, 1>(0, 0)=point1_principal+finger_direction2;
             control_point2(3)=1;
+            std::cout<<"direction: "<<direction.transpose()<<std::endl;
+            std::cout<<"result sign sign: "<<plane.dot(control_point2)<<std::endl;
             //the two control points should have opposite signs, i.e. be on opposite sides of the plane
             if((plane.dot(control_point1))*(plane.dot(control_point2))<0){
 

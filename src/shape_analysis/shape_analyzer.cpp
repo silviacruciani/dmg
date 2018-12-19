@@ -1108,7 +1108,7 @@ void ShapeAnalyzer::refine_adjacency(){
                         }
                     }
                 }
-                if(false){
+                if(true){
                 // if(component<8){
                 // if(true){
                 //if(nodes[idx] == 53 || nodes[idx] == 58 || nodes[idx] == 55 || nodes[idx] ==114){
