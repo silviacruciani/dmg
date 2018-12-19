@@ -23,7 +23,7 @@ void ExtendedDMGServer::init(ros::NodeHandle &n){
     shape_analizer=new ExtendedDMG(n);
 
     std::string object_name, object_file_path, service_name;
-    double finger_length, voxel_resolution, seed_resolution, color_importance, spatial_importance, normal_importance;
+    double finger_length, voxel_resolution, seed_resolution, color_importance, spatial_importance, normal_importance, normal_threshold;
     int refinement_iterations;
     bool disable_transform;
 
@@ -71,10 +71,15 @@ void ExtendedDMGServer::init(ros::NodeHandle &n){
         service_name="in_hand_path";
         std::cout<<"No service name specified. Using default: "<<service_name<<std::endl;
     }
+    if(!n.getParam("normal_threshold", normal_threshold)){
+        normal_threshold=0.07;
+        std::cout<<"No service name specified. Using default: "<<normal_threshold<<std::endl;
+    }
 
     shape_analizer->set_object_from_pointcloud(object_file_path+object_name);
     shape_analizer->set_supervoxel_parameters(voxel_resolution, seed_resolution, color_importance, spatial_importance, normal_importance, disable_transform, refinement_iterations);
     shape_analizer->set_finger_length(finger_length);
+    shape_analizer->set_normal_threshold(normal_threshold);
     shape_analizer->get_supervoxels();
     shape_analizer->refine_adjacency();
 

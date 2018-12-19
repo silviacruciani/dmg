@@ -81,6 +81,8 @@ int ExtendedDMG::compute_extended_path(int finger_id){
     //the points are in meters, but the object's shape is in mm, so rescale:
     contact_point1=1000.0*Eigen::Vector3f(desired_pose_1(0, 0), desired_pose_1(1, 0), desired_pose_1(2, 0));
     contact_point2=1000.0*Eigen::Vector3f(desired_pose_2(0, 0), desired_pose_2(1, 0), desired_pose_2(2, 0));
+    int desired_centroid_idx_1=get_supervoxel_index(contact_point1);
+    int desired_centroid_idx_2=get_supervoxel_index(contact_point2);
     //the line between the two contacts:
     line=contact_point2-contact_point1;
     line.normalize(); //this is the direction for the two rays to intersect. It goes from contact1 to contact2
@@ -134,20 +136,35 @@ int ExtendedDMG::compute_extended_path(int finger_id){
         q=Eigen::Quaternion<float>(initial_pose_2(6), initial_pose_2(3), initial_pose_2(4), initial_pose_2(5));
     }
 
+    Eigen::Quaternion<float> q_des;
+    int desired_contact_cc;
+    if(finger_id==1){
+        desired_contact_cc=nodes_to_connected_component.at(desired_centroid_idx_1);
+        q_des=Eigen::Quaternion<float>(desired_pose_1(6), desired_pose_1(3), desired_pose_1(4), desired_pose_1(5));
+    }
+    else{
+        desired_contact_cc=nodes_to_connected_component.at(desired_centroid_idx_2);
+        q_des=Eigen::Quaternion<float>(desired_pose_2(6), desired_pose_2(3), desired_pose_2(4), desired_pose_2(5));
+    }
+
     std::cout<<"checking principal desired angle "<<std::endl;
-    int principal_desired_angle=pose_to_angle(q, initial_contact_cc);
+    std::cout<<"PRINCIPAL pose to angle: "<<q_des.x()<<" "<<q_des.y()<<" "<<q_des.z()<<" "<<q_des.w()<<std::endl;
+    std::cout<<"PRINCIPAL CC: "<<desired_contact_cc<<std::endl;
+    int principal_desired_angle=pose_to_angle(q_des, desired_contact_cc);
 
     //get also the angle of the secondary finger at the desired pose
     if(finger_id==1){
-        initial_contact_cc=nodes_to_connected_component.at(initial_centroid_idx_2);
-        q=Eigen::Quaternion<float>(initial_pose_2(6), initial_pose_2(3), initial_pose_2(4), initial_pose_2(5));
+        desired_contact_cc=nodes_to_connected_component.at(desired_centroid_idx_2);
+        q_des=Eigen::Quaternion<float>(desired_pose_2(6), desired_pose_2(3), desired_pose_2(4), desired_pose_2(5));
     }
     else{
-        initial_contact_cc=nodes_to_connected_component.at(initial_centroid_idx_1);
-        q=Eigen::Quaternion<float>(initial_pose_1(6), initial_pose_1(3), initial_pose_1(4), initial_pose_1(5));
+        desired_contact_cc=nodes_to_connected_component.at(desired_centroid_idx_1);
+        q_des=Eigen::Quaternion<float>(desired_pose_1(6), desired_pose_1(3), desired_pose_1(4), desired_pose_1(5));
     }
     std::cout<<"checking secondary desired angle "<<std::endl;
-    int secondary_desired_angle=pose_to_angle(q, initial_contact_cc);
+    std::cout<<"SECONDARY pose to angle: "<<" "<<q_des.x()<<" "<<q_des.y()<<" "<<q_des.z()<<" "<<q_des.w()<<std::endl;
+    std::cout<<"SECONDARY CC: "<<desired_contact_cc<<std::endl;
+    int secondary_desired_angle=pose_to_angle(q_des, desired_contact_cc);
 
     //to be able to directly regrasp, the desired angle should be free of collisions 
 
@@ -491,23 +508,39 @@ void ExtendedDMG::find_available_regrasping_points(Eigen::Vector3f principal_con
     catch(std::out_of_range& e){
         std::cout<<"Missing possible angles at: "<<principal_supervoxel_idx<<std::endl;
     }
+
     std::cout<<std::endl;
-    std::cout<<"here in the processing: 1"<<std::endl;
+    // std::cout<<"here in the processing: 1"<<std::endl;
 
     int principal_angle_component=node_angle_to_angle_component.at(std::pair<int, int>(principal_supervoxel_idx, principal_angle));
-    std::cout<<"here in the processing: 2"<<std::endl;
+    // std::cout<<"here in the processing: 2"<<std::endl;
+    // std::cout<<"getting ext comp of: "<<principal_supervoxel_idx<<"  "<<principal_angle_component<<std::endl;
 
     //get the extended connected component
     int principal_cc=extended_nodes_to_connected_component.at(std::pair<int, int>(principal_supervoxel_idx, principal_angle_component));
     // std::cout<<"here in the processing: 3"<<std::endl;
-
+    // std::cout<<"got component: "<<principal_cc<<std::endl;
 
     //do the same to get the secondary connected component
     int secondary_supervoxel_idx=get_supervoxel_index(secondary_contact);
+    // std::cout<<"here in the processing: 3.5"<<std::endl;
+    // std::cout<<"secondary_supervoxel_idx: "<<secondary_supervoxel_idx<<std::endl;
+    // std::cout<<"secondary node angles: ";
+    try{
+        for (auto a: possible_angles.at(secondary_supervoxel_idx)){
+            std::cout<<a<<"  ";
+        }
+    }
+    catch(std::out_of_range& e){
+        std::cout<<"Missing possible angles at: "<<principal_supervoxel_idx<<std::endl;
+    }
+    std::cout<<std::endl;
 
     int secondary_angle_component=node_angle_to_angle_component.at(std::pair<int, int>(secondary_supervoxel_idx, secondary_angle));
+    // std::cout<<"here in the processing: 3.5.5"<<std::endl;
+
     int secondary_cc=extended_nodes_to_connected_component.at(std::pair<int, int>(secondary_supervoxel_idx, secondary_angle_component));
-    std::cout<<"here in the processing: 4"<<std::endl;
+    // std::cout<<"here in the processing: 4"<<std::endl;
 
 
     //now to a BFS starting from the given contact, until we find points from which it is possible to regrasp
@@ -516,38 +549,38 @@ void ExtendedDMG::find_available_regrasping_points(Eigen::Vector3f principal_con
     std::pair<int, int> n_init=std::pair<int, int>(principal_supervoxel_idx, principal_angle_component);
     Q.push(n_init);
     visited_nodes.insert(n_init);
-    std::cout<<"here in the processing: 5"<<std::endl;
+    // std::cout<<"here in the processing: 5"<<std::endl;
 
     while(Q.size()>0){
         std::pair<int, int> n=Q.front();
         Q.pop(); //remove the first element, that is now n
         //visit all the children (neighbor of n)
         std::multimap<std::pair<int, int>, std::pair<int, int>>::iterator label_itr=extended_refined_adjacency.equal_range(n).first;
-        std::cout<<"here in the processing: 6"<<std::endl;
+        // std::cout<<"here in the processing: 6"<<std::endl;
         for ( ; label_itr!=extended_refined_adjacency.equal_range(n).second; label_itr++) {
             std::pair<int, int> child=label_itr->second;
-            std::cout<<"child: "<<child.first<<" "<<child.second<<std::endl<<std::endl;
+            // std::cout<<"child: "<<child.first<<" "<<child.second<<std::endl<<std::endl;
             //check if this child has already been explored
             if(visited_nodes.find(child)==visited_nodes.end()){
                 visited_nodes.insert(child);
-                std::cout<<"visited nodes: "<<visited_nodes.size()<<std::endl;
-                std::cout<<"Q: "<<Q.size()<<std::endl;
+                // std::cout<<"visited nodes: "<<visited_nodes.size()<<std::endl;
+                // std::cout<<"Q: "<<Q.size()<<std::endl;
                 //now add this to the queue only if the secondary finger there can be in a valid configuration
                 //this can also be added only up to a certain distance from the contact, to keep the regrasping area limited (when possible)
-                std::cout<<"here in the processing: 7"<<std::endl;
-                std::cout<<"current node: "<<n.first<<" "<<n.second<<std::endl;
+                // std::cout<<"here in the processing: 7"<<std::endl;
+                // std::cout<<"current node: "<<n.first<<" "<<n.second<<std::endl;
                 std::vector<std::pair<int, int>> secondary_nodes=get_opposite_finger_nodes(line, child);
-                std::cout<<"node -- "<<secondary_nodes[0].first<<" "<<secondary_nodes[0].second<<std::endl;
+                // std::cout<<"node -- "<<secondary_nodes[0].first<<" "<<secondary_nodes[0].second<<std::endl;
 
                 for(std::pair<int, int> sec_n: secondary_nodes){
                     //check if this is in the correct connected component
-                    std::cout<<"node: "<<sec_n.first<<" "<<sec_n.second<<std::endl;
+                    // std::cout<<"node: "<<sec_n.first<<" "<<sec_n.second<<std::endl;
 
                     int node_cc=extended_nodes_to_connected_component.at(sec_n);
                     // std::cout<<"here in the processing: 8"<<std::endl;
 
                     if(node_cc==secondary_cc){
-                        std::cout<<"here!!!!"<<std::endl;
+                        // std::cout<<"here!!!!"<<std::endl;
                         Q.push(child);
                         //check if child is good for regrasping, and if yes add it to a set of candidates to define the regraspable area
                         Eigen::Vector3f contact_point1;
@@ -585,7 +618,7 @@ void ExtendedDMG::find_available_regrasping_points(Eigen::Vector3f principal_con
 
                         //now, if this child is valid, we can add it to the regrasp area of the corresponding gripper.
                         if(add_point){
-                            std::cout<<"+++++ adding point: "<<contact_point1.transpose()<<std::endl;
+                            // std::cout<<"+++++ adding point: "<<contact_point1.transpose()<<std::endl;
                             regrasping_candidate_nodes[gripper_id].push_back(child);
                         }
                     }
@@ -1071,15 +1104,15 @@ Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3
     Eigen::Vector3f nx=get_normal_at_contact(contact);
     Eigen::Vector3f ny=get_orthogonal_axis(nx);
 
-    std::cout<<"normal: "<<nx.transpose()<<std::endl;
-    std::cout<<"ny ax : "<<ny.transpose()<<std::endl;
-    std::cout<<"angle: "<<angle<<std::endl;
+    // std::cout<<"normal: "<<nx.transpose()<<std::endl;
+    // std::cout<<"ny ax : "<<ny.transpose()<<std::endl;
+    // std::cout<<"angle: "<<angle<<std::endl;
 
     //now rotate ny around nx of -angle
     Eigen::AngleAxis<float> aa(-angle*M_PI/180.0, nx);
     Eigen::Vector3f t_ny=aa*ny;
 
-    std::cout<<"transformed: "<<t_ny.transpose()<<std::endl;
+    // std::cout<<"transformed: "<<t_ny.transpose()<<std::endl;
 
     //get the third axis
     Eigen::Vector3f t_nz=nx.cross(t_ny);
@@ -1160,6 +1193,17 @@ int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_princ
     rectangle1.push_back(v13);
     rectangle1.push_back(v14);
 
+    //get a plane that divides the space into two: one area is the one containing the grasping fingers.
+    //the point defining this plane is the point1_principal
+    //the normal to the plane is the direction of the rectangle
+    Eigen::Vector4f plane;
+    plane<<direction(0), direction(1), direction(2), -direction.dot(point1_principal);
+    Eigen::Vector3f finger_direction1=direction;
+    finger_direction1.normalize();
+    Eigen::Vector4f control_point1;
+    control_point1.block<3, 1>(0, 0)=point1_principal+finger_direction1;
+    control_point1(3)=1;
+
     //create the second rectangle in 3D:
     Eigen::Vector3f v21=point2_principal;
     Eigen::Vector3f v22=point2_secondary;
@@ -1213,30 +1257,41 @@ int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_princ
             rectangle3[2]=v33;
             rectangle3[3]=v34;
 
-            bool collision1=false;
-            bool collision2=false;
-            //test if it is in collision with the first rectangle:
-            collision1=are_rectangles_intersecting(rectangle1, rectangle3);
-            if(!collision1){
-                collision2=are_rectangles_intersecting(rectangle2, rectangle3);
-            }
+            //check first if this angle is not in the same direction of the first gripper
+            //this is done by ensuring that the two "finger vectors" are pointing in different directions of the plane (starting from the point on the plane)
+            Eigen::Vector3f finger_direction2=direction;
+            finger_direction2.normalize();
+            Eigen::Vector4f control_point2;
+            control_point2.block<3, 1>(0, 0)=point1_principal+finger_direction2;
+            control_point2(3)=1;
+            //the two control points should have opposite signs, i.e. be on opposite sides of the plane
+            if((plane.dot(control_point1))*(plane.dot(control_point2))<0){
 
-            //if both rectangles are collision-free, then we are happy and this angle is a good candidate angle!
-            if(!(collision1||collision2)){
-                //check the clearence (somehow)
-                float clearence11=std::min((v33-v13).norm(), (v33-v14).norm()); 
-                float clearence12=std::min((v34-v13).norm(), (v34-v14).norm());
-                float clearence1=std::min(clearence11, clearence12); 
-                float clearence21=std::min((v33-v23).norm(), (v33-v24).norm()); 
-                float clearence22=std::min((v34-v23).norm(), (v34-v24).norm());
-                float clearence2=std::min(clearence21, clearence22);
-                float clearence=clearence1+clearence2 - std::max(clearence1, clearence2);
-                // std::cout<<"  --clearence: "<<clearence<<std::endl;
-                if(clearence>max_clearence){
-                    max_clearence=clearence;
-                    best_possible_angle=alpha;
-                } 
+                bool collision1=false;
+                bool collision2=false;
+                //test if it is in collision with the first rectangle:
+                collision1=are_rectangles_intersecting(rectangle1, rectangle3);
+                if(!collision1){
+                    collision2=are_rectangles_intersecting(rectangle2, rectangle3);
+                }
 
+                //if both rectangles are collision-free, then we are happy and this angle is a good candidate angle!
+                if(!(collision1||collision2)){
+                    //check the clearence (somehow)
+                    float clearence11=std::min((v33-v13).norm(), (v33-v14).norm()); 
+                    float clearence12=std::min((v34-v13).norm(), (v34-v14).norm());
+                    float clearence1=std::min(clearence11, clearence12); 
+                    float clearence21=std::min((v33-v23).norm(), (v33-v24).norm()); 
+                    float clearence22=std::min((v34-v23).norm(), (v34-v24).norm());
+                    float clearence2=std::min(clearence21, clearence22);
+                    float clearence=clearence1+clearence2 - std::max(clearence1, clearence2);
+                    // std::cout<<"  --clearence: "<<clearence<<std::endl;
+                    if(clearence>max_clearence){
+                        max_clearence=clearence;
+                        best_possible_angle=alpha;
+                    } 
+
+                }
             }
         }
 
