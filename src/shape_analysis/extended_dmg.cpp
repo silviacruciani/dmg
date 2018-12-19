@@ -1193,6 +1193,17 @@ int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_princ
     rectangle1.push_back(v13);
     rectangle1.push_back(v14);
 
+    //get a plane that divides the space into two: one area is the one containing the grasping fingers.
+    //the point defining this plane is the point1_principal
+    //the normal to the plane is the direction of the rectangle
+    Eigen::Vector4f plane;
+    plane<<direction(0), direction(1), direction(2), -direction.dot(point1_principal);
+    Eigen::Vector3f finger_direction1=direction;
+    finger_direction1.normalize();
+    Eigen::Vector4f control_point1;
+    control_point1.block<3, 1>(0, 0)=point1_principal+finger_direction1;
+    control_point1(3)=1;
+
     //create the second rectangle in 3D:
     Eigen::Vector3f v21=point2_principal;
     Eigen::Vector3f v22=point2_secondary;
@@ -1246,30 +1257,41 @@ int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_princ
             rectangle3[2]=v33;
             rectangle3[3]=v34;
 
-            bool collision1=false;
-            bool collision2=false;
-            //test if it is in collision with the first rectangle:
-            collision1=are_rectangles_intersecting(rectangle1, rectangle3);
-            if(!collision1){
-                collision2=are_rectangles_intersecting(rectangle2, rectangle3);
-            }
+            //check first if this angle is not in the same direction of the first gripper
+            //this is done by ensuring that the two "finger vectors" are pointing in different directions of the plane (starting from the point on the plane)
+            Eigen::Vector3f finger_direction2=direction;
+            finger_direction2.normalize();
+            Eigen::Vector4f control_point2;
+            control_point2.block<3, 1>(0, 0)=point1_principal+finger_direction2;
+            control_point2(3)=1;
+            //the two control points should have opposite signs, i.e. be on opposite sides of the plane
+            if((plane.dot(control_point1))*(plane.dot(control_point2))<0){
 
-            //if both rectangles are collision-free, then we are happy and this angle is a good candidate angle!
-            if(!(collision1||collision2)){
-                //check the clearence (somehow)
-                float clearence11=std::min((v33-v13).norm(), (v33-v14).norm()); 
-                float clearence12=std::min((v34-v13).norm(), (v34-v14).norm());
-                float clearence1=std::min(clearence11, clearence12); 
-                float clearence21=std::min((v33-v23).norm(), (v33-v24).norm()); 
-                float clearence22=std::min((v34-v23).norm(), (v34-v24).norm());
-                float clearence2=std::min(clearence21, clearence22);
-                float clearence=clearence1+clearence2 - std::max(clearence1, clearence2);
-                // std::cout<<"  --clearence: "<<clearence<<std::endl;
-                if(clearence>max_clearence){
-                    max_clearence=clearence;
-                    best_possible_angle=alpha;
-                } 
+                bool collision1=false;
+                bool collision2=false;
+                //test if it is in collision with the first rectangle:
+                collision1=are_rectangles_intersecting(rectangle1, rectangle3);
+                if(!collision1){
+                    collision2=are_rectangles_intersecting(rectangle2, rectangle3);
+                }
 
+                //if both rectangles are collision-free, then we are happy and this angle is a good candidate angle!
+                if(!(collision1||collision2)){
+                    //check the clearence (somehow)
+                    float clearence11=std::min((v33-v13).norm(), (v33-v14).norm()); 
+                    float clearence12=std::min((v34-v13).norm(), (v34-v14).norm());
+                    float clearence1=std::min(clearence11, clearence12); 
+                    float clearence21=std::min((v33-v23).norm(), (v33-v24).norm()); 
+                    float clearence22=std::min((v34-v23).norm(), (v34-v24).norm());
+                    float clearence2=std::min(clearence21, clearence22);
+                    float clearence=clearence1+clearence2 - std::max(clearence1, clearence2);
+                    // std::cout<<"  --clearence: "<<clearence<<std::endl;
+                    if(clearence>max_clearence){
+                        max_clearence=clearence;
+                        best_possible_angle=alpha;
+                    } 
+
+                }
             }
         }
 
