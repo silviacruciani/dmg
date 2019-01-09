@@ -1108,70 +1108,106 @@ Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3
     //the nx axis corresponds to the z axis of the gripper (this could be inverted according to which finger is set as principal finger)
     Eigen::Vector3f nx=get_normal_at_contact(contact);
     Eigen::Vector3f ny=get_orthogonal_axis(nx);
+    Eigen::Vector3f nz=nx.cross(ny);
 
-    bool inwards=is_normal_inwards(contact, nx);
-    if(inwards){
-        angle=-angle;
-    }
+    // bool inwards=is_normal_inwards(contact, nx);
+    // if(inwards){
+    //     angle=-angle;
+    // }
 
-    // std::cout<<"normal: "<<nx.transpose()<<std::endl;
-    // std::cout<<"ny ax : "<<ny.transpose()<<std::endl;
-    // std::cout<<"angle: "<<angle<<std::endl
+    // // std::cout<<"normal: "<<nx.transpose()<<std::endl;
+    // // std::cout<<"ny ax : "<<ny.transpose()<<std::endl;
+    // std::cout<<"IN angle to pose ---- angle: "<<angle<<std::endl;
 
-    //now rotate ny around nx of -angle
-    Eigen::AngleAxis<float> aa(-angle*M_PI/180.0, nx);
-    Eigen::Vector3f t_ny=aa*ny;
+    // //now rotate ny around nx of angle
+    // Eigen::AngleAxis<float> aa(angle*M_PI/180.0, nx);
+    // Eigen::Vector3f t_ny=aa*ny;
 
-    // std::cout<<"transformed: "<<t_ny.transpose()<<std::endl;
+    // // std::cout<<"transformed: "<<t_ny.transpose()<<std::endl;
 
-    //get the third axis
-    Eigen::Vector3f t_nz=nx.cross(t_ny);
+    // //get the third axis
+    // Eigen::Vector3f t_nz=nx.cross(t_ny);
 
-    //fill a matrix
+    // //fill a matrix
+    // Eigen::Matrix3f component_matrix;
+    // component_matrix(0,0)=nx(0);
+    // component_matrix(1,0)=nx(1);
+    // component_matrix(2,0)=nx(2);
+
+    // component_matrix(0,1)=t_ny(0);
+    // component_matrix(1,1)=t_ny(1);
+    // component_matrix(2,1)=t_ny(2);
+
+    // component_matrix(0,2)=t_nz(0);
+    // component_matrix(1,2)=t_nz(1);
+    // component_matrix(2,2)=t_nz(2);
+
+    // //reorient it according to the fingers component
+    // Eigen::Matrix3f component_to_finger=Eigen::Matrix3f::Zero();
+
+    // component_to_finger(0, 1)=1;
+    // component_to_finger(1, 2)=1;
+    // component_to_finger(2, 0)=1;
+
+    // //this I am not sure if it is correct
+    // // bool inwards=is_normal_inwards(contact, nx);
+    // // if(!inwards){
+    // //     std::cout<<"the normal is outwards!"<<std::endl;
+    // //     component_to_finger(0, 1)=-1;
+    // //     component_to_finger(2, 0)=1;
+    // // }
+
+    // // Eigen::Matrix3f finger_pose=component_to_finger*component_matrix*component_to_finger.transpose();
+    // Eigen::Matrix3f finger_pose=(component_to_finger*component_matrix.transpose()).transpose();
+
+    // //this is component to base transformation
+    // // Eigen::Matrix3f pose_component=component_pose_matrix(nodes_to_connected_component.at(get_supervoxel_index(contact)));
+
+    // // std::cout<<"matrix generated: "<<std::endl<<component_matrix<<std::endl;
+
+    // // component_matrix.transposeInPlace();
+
+    // // std::cout<<"component_matrix: "<<std::endl<<pose_component<<std::endl;
+
+
+    // //get the quaternion corresponding to this matrix
+    // // Eigen::Quaternion<float> q(component_matrix);
+    // Eigen::Quaternion<float> q(finger_pose);
+
+    Eigen::Vector3f gripper_x;
+    gripper_x<<0, cos(angle*M_PI/180.0), sin(angle*M_PI/180.0);
+    Eigen::Vector3f gripper_z;
+    gripper_z<<1, 0, 0; //because it is nx in the component
+    Eigen::Vector3f gripper_y=gripper_z.cross(gripper_x);
+    Eigen::Matrix3f gripper_pose_in_component;
+    gripper_pose_in_component(0, 0)=gripper_x(0);
+    gripper_pose_in_component(1, 0)=gripper_x(1);
+    gripper_pose_in_component(2, 0)=gripper_x(2);
+
+    gripper_pose_in_component(0, 1)=gripper_y(0);
+    gripper_pose_in_component(1, 1)=gripper_y(1);
+    gripper_pose_in_component(2, 1)=gripper_y(2);
+
+    gripper_pose_in_component(0, 2)=gripper_z(0);
+    gripper_pose_in_component(1, 2)=gripper_z(1);
+    gripper_pose_in_component(2, 2)=gripper_z(2);
+
     Eigen::Matrix3f component_matrix;
     component_matrix(0,0)=nx(0);
     component_matrix(1,0)=nx(1);
     component_matrix(2,0)=nx(2);
 
-    component_matrix(0,1)=t_ny(0);
-    component_matrix(1,1)=t_ny(1);
-    component_matrix(2,1)=t_ny(2);
+    component_matrix(0,1)=ny(0);
+    component_matrix(1,1)=ny(1);
+    component_matrix(2,1)=ny(2);
 
-    component_matrix(0,2)=t_nz(0);
-    component_matrix(1,2)=t_nz(1);
-    component_matrix(2,2)=t_nz(2);
+    component_matrix(0,2)=nz(0);
+    component_matrix(1,2)=nz(1);
+    component_matrix(2,2)=nz(2);
 
-    //reorient it according to the fingers component
-    Eigen::Matrix3f component_to_finger=Eigen::Matrix3f::Zero();
+    Eigen::Matrix3f gripper_pose=component_matrix*gripper_pose_in_component;
 
-    component_to_finger(0, 1)=1;
-    component_to_finger(1, 2)=1;
-    component_to_finger(2, 0)=1;
-
-    //this I am not sure if it is correct
-    // bool inwards=is_normal_inwards(contact, nx);
-    // if(!inwards){
-    //     std::cout<<"the normal is outwards!"<<std::endl;
-    //     component_to_finger(0, 1)=-1;
-    //     component_to_finger(2, 0)=1;
-    // }
-
-    // Eigen::Matrix3f finger_pose=component_to_finger*component_matrix*component_to_finger.transpose();
-    Eigen::Matrix3f finger_pose=(component_to_finger*component_matrix.transpose()).transpose();
-
-    //this is component to base transformation
-    // Eigen::Matrix3f pose_component=component_pose_matrix(nodes_to_connected_component.at(get_supervoxel_index(contact)));
-
-    // std::cout<<"matrix generated: "<<std::endl<<component_matrix<<std::endl;
-
-    // component_matrix.transposeInPlace();
-
-    // std::cout<<"component_matrix: "<<std::endl<<pose_component<<std::endl;
-
-
-    //get the quaternion corresponding to this matrix
-    // Eigen::Quaternion<float> q(component_matrix);
-    Eigen::Quaternion<float> q(finger_pose);
+    Eigen::Quaternion<float> q(gripper_pose);
     return q;
 
 }
@@ -1291,8 +1327,10 @@ int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_princ
             std::cout<<"direction: "<<direction.transpose()<<std::endl;
             std::cout<<"result sign sign: "<<plane.dot(control_point2)<<std::endl;
             //the two control points should have opposite signs, i.e. be on opposite sides of the plane
-            if((plane.dot(control_point1))*(plane.dot(control_point2))<0){
+            //it is -0.2 instead of 0 to account for numerical imprecisions
+            if((plane.dot(control_point1))*(plane.dot(control_point2))<-0.2){
 
+                // draw_finger("finger_testing"+std::to_string(alpha), contact1_principal, current_pose, 0);
                 bool collision1=false;
                 bool collision2=false;
                 //test if it is in collision with the first rectangle:
@@ -1315,6 +1353,7 @@ int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_princ
                     if(clearence>max_clearence){
                         max_clearence=clearence;
                         best_possible_angle=alpha;
+                        std::cout<<"FOUND BEST POSSIBLE ANGLE  -- "<<alpha<<std::endl;
                     } 
 
                 }
