@@ -23,6 +23,8 @@ ExtendedDMG::ExtendedDMG(ros::NodeHandle n) : ShapeAnalyzer(){
     ray_tracing_service_name="/ray_tracing";
     angle_collision_service_name="/collision_check";
     node_handle=n;
+    regrasp1_angle=0;
+    regrasp2_angle=0;
 
     ray_tracing_client=node_handle.serviceClient<RayTracing>(ray_tracing_service_name);
     bool active=ros::service::waitForService(ray_tracing_service_name, 1);
@@ -721,7 +723,8 @@ int ExtendedDMG::pose_to_angle(Eigen::Quaternion<float> q, int component){
     Eigen::Vector3f x_prime=gripper_to_base.block<3, 1>(0, 0);
     // std::cout<<"x prime: "<<x_prime.transpose()<<std::endl;
     // std::cout<<"given quaternion: "<<q.x()<<" "<<q.y()<<" "<<q.z()<<" "<<q.w()<<std::endl<<"  xprime: "<<x_prime.transpose()<<std::endl;
-    double angle=atan2(-x_prime(2), -x_prime(1));
+    double angle=atan2(x_prime(2), x_prime(1));
+    // double angle=atan2(-x_prime(2), -x_prime(1));
     // std::cout<<"angle: "<<angle<<std::endl;
     int int_angle=filter_angle(angle);
     // int int_angle=filter_angle(angle + M_PI);
