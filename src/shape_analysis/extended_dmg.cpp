@@ -724,6 +724,9 @@ int ExtendedDMG::pose_to_angle(Eigen::Quaternion<float> q, int component){
     // std::cout<<"x prime: "<<x_prime.transpose()<<std::endl;
     // std::cout<<"given quaternion: "<<q.x()<<" "<<q.y()<<" "<<q.z()<<" "<<q.w()<<std::endl<<"  xprime: "<<x_prime.transpose()<<std::endl;
     double angle=atan2(x_prime(2), x_prime(1));
+    if(inwards){
+        angle=angle+M_PI;
+    }
     // double angle=atan2(-x_prime(2), -x_prime(1));
     // std::cout<<"angle: "<<angle<<std::endl;
     int int_angle=filter_angle(angle);
@@ -1110,10 +1113,10 @@ Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3
     Eigen::Vector3f ny=get_orthogonal_axis(nx);
     Eigen::Vector3f nz=nx.cross(ny);
 
-    // bool inwards=is_normal_inwards(contact, nx);
-    // if(inwards){
-    //     angle=-angle;
-    // }
+    bool inwards=is_normal_inwards(contact, nx);
+    if(inwards){
+        angle=angle-180;
+    }
 
     // // std::cout<<"normal: "<<nx.transpose()<<std::endl;
     // // std::cout<<"ny ax : "<<ny.transpose()<<std::endl;
