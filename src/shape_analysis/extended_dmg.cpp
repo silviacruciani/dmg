@@ -1235,9 +1235,13 @@ int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_princ
     Eigen::Vector3f v12=point1_secondary;
     //for the other 2 vertices, get the normal to the surface at the 1st contact point and check the 0 angle direction
     Eigen::Vector3f normal=get_normal_at_contact(v11);
+    bool inwards=is_normal_inwards(v11, normal);
     Eigen::Vector3f zero_axis=get_zero_angle_direction(v11);
     //now rotate this axis of the grasping angle around the normal
     Eigen::Matrix3f R_axis_angle=axis_angle_matrix(normal, grasping_angle1);
+    if(inwards){
+        R_axis_angle=axis_angle_matrix(normal, grasping_angle1+M_PI);
+    }
     Eigen::Vector3f direction=R_axis_angle*zero_axis; //double check if it is correct
     //now get the two other vertices of the rectangle, from the first two along this direction at distance of finger length
     Eigen::Vector3f v13=v12-l_finger*direction;
@@ -1266,8 +1270,12 @@ int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_princ
     Eigen::Vector3f v22=point2_secondary;
     //obtain the other 2 vertices with the same procedure as before:
     normal=get_normal_at_contact(v21);
+    inwards=is_normal_inwards(v21, normal);
     zero_axis=get_zero_angle_direction(v21);
     R_axis_angle=axis_angle_matrix(normal, grasping_angle1);
+    if(inwards){
+        R_axis_angle=axis_angle_matrix(normal, grasping_angle1+M_PI);
+    }
     direction=R_axis_angle*zero_axis; //double check if it is correct
     Eigen::Vector3f v23=v22-l_finger*direction;
     Eigen::Vector3f v24=v21-l_finger*direction;
@@ -1287,6 +1295,7 @@ int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_princ
     Eigen::Vector3f v31=contact1_principal;
     Eigen::Vector3f v32=contact1_secondary;
     normal=get_normal_at_contact(v31);
+    inwards=is_normal_inwards(v31, normal);
     zero_axis=get_zero_angle_direction(v31);
     Eigen::Vector3f v33, v34;
     std::vector<Eigen::Vector3f> rectangle3;
@@ -1314,6 +1323,9 @@ int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_princ
 
         //the second vertices depend on the current angle. Obtained as before
             R_axis_angle=axis_angle_matrix(normal, M_PI*float(alpha)/180.0);
+            if(inwards){
+                R_axis_angle=axis_angle_matrix(normal, M_PI*float(alpha)/180.0+M_PI);
+            }
             direction=R_axis_angle*zero_axis;
             v33=v32-l_finger*direction;
             v34=v31-l_finger*direction;
