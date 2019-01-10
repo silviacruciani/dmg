@@ -1028,8 +1028,8 @@ void ExtendedDMG::visualize_results(){
         radius=10.0*nodes_distances_from_regrasps.at(n.first)/normalizing_factor;
         //if this node is one of the two that are perfect candidates for regrasping, then put them in yellow
         if(n.first==regrasp2_node1||n.first==regrasp2_node2){
-            regrasp_viewer->addSphere(all_centroids_cloud->at(supervoxel_to_pc_idx.at(n.first)), radius, 1.0, 1.0, 0.0, "node_"+std::to_string(n.first));
-            regrasp_viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.2, "node_"+std::to_string(n.first));
+            // regrasp_viewer->addSphere(all_centroids_cloud->at(supervoxel_to_pc_idx.at(n.first)), radius, 1.0, 1.0, 0.0, "node_"+std::to_string(n.first));
+            // regrasp_viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.2, "node_"+std::to_string(n.first));
         }
         else{
             // regrasp_viewer->addSphere(all_centroids_cloud->at(supervoxel_to_pc_idx.at(n.first)), radius, 0.0, 0.0, 1.0, "node_"+std::to_string(n.first));
@@ -1237,8 +1237,8 @@ int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_princ
     Eigen::Matrix3f R_axis_angle=axis_angle_matrix(normal, grasping_angle1);
     Eigen::Vector3f direction=R_axis_angle*zero_axis; //double check if it is correct
     //now get the two other vertices of the rectangle, from the first two along this direction at distance of finger length
-    Eigen::Vector3f v13=v12+l_finger*direction;
-    Eigen::Vector3f v14=v11+l_finger*direction;
+    Eigen::Vector3f v13=v12-l_finger*direction;
+    Eigen::Vector3f v14=v11-l_finger*direction;
     std::vector<Eigen::Vector3f> rectangle1;
     rectangle1.push_back(v11);
     rectangle1.push_back(v12);
@@ -1266,8 +1266,8 @@ int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_princ
     zero_axis=get_zero_angle_direction(v21);
     R_axis_angle=axis_angle_matrix(normal, grasping_angle1);
     direction=R_axis_angle*zero_axis; //double check if it is correct
-    Eigen::Vector3f v23=v22+l_finger*direction;
-    Eigen::Vector3f v24=v21+l_finger*direction;
+    Eigen::Vector3f v23=v22-l_finger*direction;
+    Eigen::Vector3f v24=v21-l_finger*direction;
     std::vector<Eigen::Vector3f> rectangle2;
     rectangle2.push_back(v21);
     rectangle2.push_back(v22);
@@ -1312,8 +1312,8 @@ int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_princ
         //the second vertices depend on the current angle. Obtained as before
             R_axis_angle=axis_angle_matrix(normal, M_PI*float(alpha)/180.0);
             direction=R_axis_angle*zero_axis;
-            v33=v32+l_finger*direction;
-            v34=v31+l_finger*direction;
+            v33=v32-l_finger*direction;
+            v34=v31-l_finger*direction;
             rectangle3[2]=v33;
             rectangle3[3]=v34;
 
@@ -1328,7 +1328,7 @@ int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_princ
             std::cout<<"result sign sign: "<<plane.dot(control_point2)<<std::endl;
             //the two control points should have opposite signs, i.e. be on opposite sides of the plane
             //it is -0.2 instead of 0 to account for numerical imprecisions
-            if((plane.dot(control_point1))*(plane.dot(control_point2))<-0.2){
+            if((plane.dot(control_point1))*(plane.dot(control_point2))<-0.01){
 
                 // draw_finger("finger_testing"+std::to_string(alpha), contact1_principal, current_pose, 0);
                 bool collision1=false;
