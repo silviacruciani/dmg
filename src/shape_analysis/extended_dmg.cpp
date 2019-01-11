@@ -1018,7 +1018,7 @@ void ExtendedDMG::visualize_results(){
     std::cout<<std::endl<<std::endl<<"++++++++++++++++++++++++++++++++++"<<std::endl;
     std::cout<<"angle: "<<regrasp2_angle<<std::endl;
     //the angle must be converted into degrees
-    Eigen::Quaternionf regrasp_orientation=angle_to_pose(regrasp2_angle*180.0/M_PI, regrasp2_principal);
+    Eigen::Quaternionf regrasp_orientation=angle_to_pose(regrasp2_angle, regrasp2_principal);
     // std::cout<<"reconstructed angle: "<<pose_to_angle(regrasp_orientation, nodes_to_connected_component.at(get_supervoxel_index(regrasp2_principal)));
     // std::cout<<std::endl<<std::endl<<"++++++++++++++++++++++++++++++++++"<<std::endl;
     // std::cout<<"regrasp pose 1: "<<regrasp2_principal.transpose()<<" "<<regrasp_orientation.x()<<" "<<regrasp_orientation.y()<<" "<<regrasp_orientation.z()<<" "<<regrasp_orientation.w()<<std::endl;
@@ -1027,9 +1027,9 @@ void ExtendedDMG::visualize_results(){
     draw_finger("finger2_principal", regrasp2_principal, regrasp_orientation, 1);
     draw_finger("finger2_secondary", regrasp2_secondary, regrasp_orientation, 1);
 
-    std::cout<<"first gripper regrasp angle [deg]: "<<regrasp1_angle*180.0/M_PI<<std::endl; 
+    std::cout<<"first gripper regrasp angle [deg]: "<<regrasp1_angle<<std::endl; 
 
-    Eigen::Quaternionf regrasp2_orientation=angle_to_pose(regrasp1_angle*180.0/M_PI, regrasp1_principal);
+    Eigen::Quaternionf regrasp2_orientation=angle_to_pose(regrasp1_angle, regrasp1_principal);
     //draw also the second regrasp (for 1st gripper)
     draw_finger("finger4_principal", regrasp1_principal, regrasp2_orientation, 3);
     draw_finger("finger4_secondary", regrasp1_secondary, regrasp2_orientation, 3);
@@ -1123,7 +1123,7 @@ geometry_msgs::Pose ExtendedDMG::get_regrasp_pose(int gripper){
         regrasp_angle=regrasp2_angle;
     }
 
-    Eigen::Quaternion<float> q=angle_to_pose(regrasp_angle*180.0/M_PI, regrasp_point);
+    Eigen::Quaternion<float> q=angle_to_pose(regrasp_angle, regrasp_point);
     //fill the geometry msg with the values (from mm to m)
     regrasp_pose.position.x=regrasp_point(0)/1000.0;
     regrasp_pose.position.y=regrasp_point(1)/1000.0;
@@ -1143,9 +1143,11 @@ Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3
     Eigen::Vector3f ny=get_orthogonal_axis(nx);
     Eigen::Vector3f nz=nx.cross(ny);
 
+    // std::cout<<"the angle "<<angle*180/M_PI<<"  becomes: "<<std::endl;
     bool inwards=is_normal_inwards(contact, nx);
     if(inwards){
-        angle=angle-180;
+        // std::cout<<"which is inwards"<<std::endl;
+        angle=angle-M_PI;
     }
 
     // // std::cout<<"normal: "<<nx.transpose()<<std::endl;
@@ -1208,7 +1210,7 @@ Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3
     // Eigen::Quaternion<float> q(finger_pose);
 
     Eigen::Vector3f gripper_x;
-    gripper_x<<0, cos(angle*M_PI/180.0), sin(angle*M_PI/180.0);
+    gripper_x<<0, cos(angle), sin(angle);
     Eigen::Vector3f gripper_z;
     gripper_z<<1, 0, 0; //because it is nx in the component
     Eigen::Vector3f gripper_y=gripper_z.cross(gripper_x);
@@ -1241,6 +1243,7 @@ Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3
     Eigen::Matrix3f gripper_pose=component_matrix*gripper_pose_in_component;
 
     Eigen::Quaternion<float> q(gripper_pose);
+    std::cout<<q.x()<<"  "<<q.y()<<"  "<<q.z()<<"  "<<q.w()<<std::endl;
     return q;
 
 }
@@ -1340,7 +1343,7 @@ int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_princ
         // std::cout<<" ... testing: "<<alpha<<std::endl;
 
         //check if this angle is valid in the opposite component. If not, move forward
-        Eigen::Quaternionf current_pose=angle_to_pose(alpha, contact1_principal);
+        Eigen::Quaternionf current_pose=angle_to_pose(M_PI*float(alpha)/180.0, contact1_principal);
         // std::cout<<"pose: "<<current_pose.x()<<" "<<current_pose.y()<<" "<<current_pose.z()<<" "<<current_pose.w()<<std::endl;
         int opposite_angle=pose_to_angle(current_pose, principal_regrasping_cc);
         // int opposite_angle=pose_to_angle(current_pose, secondary_regrasping_cc);
