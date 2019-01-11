@@ -185,7 +185,7 @@ int ExtendedDMG::compute_extended_path(int finger_id){
 
     //if it is possible to directly regrasp, then we are happy and we can fill the last sequence with empty vectors
     //otherwise, we should propagate backwards in the DMG to find a proper regrasping area
-    int regrasp1_angle=-1;
+    int int_regrasp1_angle=-1;
     if(direct_regrasp_1&& !angle_in_collision){
         //this is the best case
         r_rotations[2]=std::vector<double>();
@@ -195,11 +195,11 @@ int ExtendedDMG::compute_extended_path(int finger_id){
         regrasp1_principal=contact_point1;
         std::cout<<"DIRECT REGRASP: "<<regrasp1_principal.transpose();
         regrasp1_secondary=contact_point2;
-        regrasp1_angle=principal_desired_angle;
+        int_regrasp1_angle=principal_desired_angle;
         //add it to the list
         int regrasp1_node=get_supervoxel_index(regrasp1_principal);
         std::cout<<"   node: "<<regrasp1_node<<std::endl;
-        int ang_component=node_angle_to_angle_component.at(std::pair<int, int>(regrasp1_node, regrasp1_angle));
+        int ang_component=node_angle_to_angle_component.at(std::pair<int, int>(regrasp1_node, int_regrasp1_angle));
         regrasping_candidate_nodes[0].push_back(std::pair<int, int>(regrasp1_node, ang_component));
     }
     else{
@@ -221,8 +221,18 @@ int ExtendedDMG::compute_extended_path(int finger_id){
         pcl::PointXYZRGBA p=all_centroids_cloud->at(supervoxel_to_pc_idx.at(regrasping_candidate_nodes[0][0].first));
         regrasp1_principal<<p.x, p.y, p.z;
         std::cout<<"regrasp1_principal: "<<regrasp1_principal.transpose()<<std::endl;
-        //get the first available angle:
-        regrasp1_angle=*(possible_angles.at(regrasping_candidate_nodes[0][0].first).begin());
+        //check if the desired angle can be achieved at the regrasp point
+        if(possible_angles.at(regrasping_candidate_nodes[0][0].first).find(principal_desired_angle)==possible_angles.at(regrasping_candidate_nodes[0][0].first).end()){
+            //get the first available angle: (TO BE IMPROVED)
+            std::cout<<"The desired angle is not achievable in the selected regrasp point"<<std::endl;
+            int_regrasp1_angle=*(possible_angles.at(regrasping_candidate_nodes[0][0].first).begin());
+        }
+        else{
+            std::cout<<"setting the regrasp angle to the desired angle"<<std::endl;
+            int_regrasp1_angle=principal_desired_angle;
+            std::cout<<"REGRASP ANGLE: "<<int_regrasp1_angle<<std::endl;
+        }
+        
         //get the opposite component
         Eigen::Vector3f regrasp_line=contact_point2-contact_point1; //direction from principal to secondary finger
         end_point_ray=regrasp1_principal+1000.0*regrasp_line;
@@ -324,23 +334,38 @@ int ExtendedDMG::compute_extended_path(int finger_id){
         regrasp2_secondary(1)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node2]).y;
         regrasp2_secondary(2)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node2]).z;
 
-        //loop over all the possible angles (this could take time)
-        for(std::set<int>::iterator it=node_component_to_angles_subset.at(regrasping_candidate_nodes[0][idx]).begin(); it!=possible_angles.at(regrasping_candidate_nodes[0][idx].first).end(); it++){
-            regrasp1_angle=*it;
-            //check if in this regrasp point the gripper is free of collisions
-            int free_regrasp_angle=get_collision_free_regrasp_angle(regrasp2_principal, regrasp2_secondary, release_contact_1, release_contact_2, release_angle, regrasp1_principal, regrasp1_secondary, regrasp1_angle);
-            if(free_regrasp_angle>=0){
-                //there is a good collision-free angle!
-                regrasp2_angle=M_PI*float(free_regrasp_angle/180.0);
-                std::cout<<"second gripper regrasp angle: "<<regrasp2_angle<<std::endl;
-                valid_configuration=true;
-                break;
-            }
-            else{
-                //A lot of TODOS
-                //for now skip
-                //std::cout<<"The candidate helper regrasp is not free of collisions. More in-hand motions are required"<<std::endl;
-                // 1) move the 1st gripper regrasp angle (can be done in big intervals or randomly...)
+        int free_regrasp_angle=get_collision_free_regrasp_angle(regrasp2_principal, regrasp2_secondary, release_contact_1, release_contact_2, release_angle, regrasp1_principal, regrasp1_secondary, int_regrasp1_angle);
+        if(free_regrasp_angle>=0){
+            std::cout<<"WE ARE VERY HAPPY BECAUSE EVERYTHING WORKS NICELY"<<std::endl;
+            std::cout<<"fist gripper regrasp angle: "<<int_regrasp1_angle<<std::endl;
+            //there is a good collision-free angle!
+            regrasp2_angle=M_PI*float(free_regrasp_angle)/180.0;
+            regrasp1_angle=M_PI*float(int_regrasp1_angle)/180;
+            std::cout<<"second gripper regrasp angle: "<<regrasp2_angle<<std::endl;
+            valid_configuration=true;
+        }
+        else{
+            //loop over all the possible angles (this could take time)
+            for(std::set<int>::iterator it=node_component_to_angles_subset.at(regrasping_candidate_nodes[0][idx]).begin(); it!=possible_angles.at(regrasping_candidate_nodes[0][idx].first).end(); it++){
+                int_regrasp1_angle=*it;
+                std::cout<<" OVERRIDING FIRST REGRASP ANGLE TO: "<<int_regrasp1_angle<<std::endl;
+                regrasp1_angle=M_PI*float(int_regrasp1_angle)/180;
+
+                //check if in this regrasp point the gripper is free of collisions
+                int free_regrasp_angle=get_collision_free_regrasp_angle(regrasp2_principal, regrasp2_secondary, release_contact_1, release_contact_2, release_angle, regrasp1_principal, regrasp1_secondary, int_regrasp1_angle);
+                if(free_regrasp_angle>=0){
+                    //there is a good collision-free angle!
+                    regrasp2_angle=M_PI*float(free_regrasp_angle/180.0);
+                    std::cout<<"second gripper regrasp angle: "<<regrasp2_angle<<std::endl;
+                    valid_configuration=true;
+                    break;
+                }
+                else{
+                    //A lot of TODOS
+                    //for now skip
+                    //std::cout<<"The candidate helper regrasp is not free of collisions. More in-hand motions are required"<<std::endl;
+                    // 1) move the 1st gripper regrasp angle (can be done in big intervals or randomly...)
+                }
             }
         }
 
@@ -358,9 +383,9 @@ int ExtendedDMG::compute_extended_path(int finger_id){
     if(!direct_regrasp_1||angle_in_collision){
         std::cout<<"computing the path to be executed after regrasp!"<<std::endl;
         int regrasp1_secondary_node=get_supervoxel_index(regrasp1_secondary);
-        int regrasp1_angle_secondary= pose_to_angle(angle_to_pose(M_PI*float(regrasp1_angle)/180.0, regrasp1_principal), nodes_to_connected_component.at(regrasp1_secondary_node));
+        int regrasp1_angle_secondary= pose_to_angle(angle_to_pose(M_PI*float(int_regrasp1_angle)/180.0, regrasp1_principal), nodes_to_connected_component.at(regrasp1_secondary_node));
         int regrasp1_angle_component_secondary=node_angle_to_angle_component.at(std::pair<int, int>(regrasp1_secondary_node, regrasp1_angle_secondary));
-        std::pair<std::stack<std::pair<int, int>>, std::stack<int>> regrasp_path=ShapeAnalyzer::get_extended_path(extended_refined_adjacency, get_supervoxel_index(regrasp1_principal), regrasp_node_goal1.first, contact_point2-contact_point1, std::pair<int, int>(regrasp1_secondary_node, regrasp1_angle_component_secondary), regrasp_node_goal2, regrasp1_angle, principal_desired_angle);
+        std::pair<std::stack<std::pair<int, int>>, std::stack<int>> regrasp_path=ShapeAnalyzer::get_extended_path(extended_refined_adjacency, get_supervoxel_index(regrasp1_principal), regrasp_node_goal1.first, contact_point2-contact_point1, std::pair<int, int>(regrasp1_secondary_node, regrasp1_angle_component_secondary), regrasp_node_goal2, int_regrasp1_angle, principal_desired_angle);
         std::cout<<"here is fine"<<std::endl;
         //put this into a vector for the sequence!
         std::pair<int, int> idx;
@@ -381,11 +406,13 @@ int ExtendedDMG::compute_extended_path(int finger_id){
             p.z=point.z/1000.0;
             r_translations[2].push_back(p);
         }
-        compute_extended_angle_sequence(vector_regrasp_path, finger_id, regrasp1_angle, principal_desired_angle);
+        compute_extended_angle_sequence(vector_regrasp_path, finger_id, int_regrasp1_angle, principal_desired_angle);
         r_rotations[2]=angle_sequence;
 
         //for now do not care about the distances
     }
+
+    std::cout<<"until here, the regrasp1_angle is: "<<int_regrasp1_angle<<" in deg: "<<regrasp1_angle<<std::endl;
 
 
     
@@ -963,6 +990,8 @@ void ExtendedDMG::visualize_results(){
     viewer->removeShape("regrasp1_node_1");
     viewer->removeShape("regrasp1_node_2");
 
+    std::cout<<" --- now the regrasp1_angle is: "<<regrasp1_angle<<std::endl;
+
 
     //now add a green sphere to the goal nodes
     regrasp_viewer->addSphere(pcl::PointXYZ(desired_pose_1(0, 0)*1000.0, desired_pose_1(1, 0)*1000.0, desired_pose_1(2, 0)*1000.0), 3, 0.0, 1.0, 0.0, "goal_node_1");
@@ -1087,6 +1116,7 @@ geometry_msgs::Pose ExtendedDMG::get_regrasp_pose(int gripper){
     if(gripper==0){
         regrasp_point=regrasp1_principal;
         regrasp_angle=regrasp1_angle;
+        std::cout<<"  +++GIVING REGRASP ANGLE: "<<regrasp_angle<<std::endl;
     }
     else{
         regrasp_point=regrasp2_principal;
