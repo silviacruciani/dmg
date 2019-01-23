@@ -662,9 +662,9 @@ void ExtendedDMG::find_available_regrasping_points(Eigen::Vector3f principal_con
 int ExtendedDMG::get_supervoxel_index(Eigen::Vector3f contact){
     //put the contact in pcl point
     pcl::PointXYZRGBA input;
-    input.x=contact(0);
-    input.y=contact(1);
-    input.z=contact(2);
+    input.x=contact(0)*1000.0;
+    input.y=contact(1)*1000.0;
+    input.z=contact(2)*1000.0;
 
     //now start searching for the nearest neighbor
     int K=1;
@@ -675,6 +675,7 @@ int ExtendedDMG::get_supervoxel_index(Eigen::Vector3f contact){
     double min_dist=DBL_MAX;
     int min_dist_idx=-1;
     if (centroids_kdtree.nearestKSearch(input, K, pointIdxNKNSearch, pointNKNSquaredDistance)> 0){
+        std::cout<<"given: "<<contact.transpose()<<"result: "<<pointIdxNKNSearch[0]<<std::endl;
         return int(pc_to_supervoxel_idx.at(pointIdxNKNSearch[0])); //the first and only found index is the nearest neighbor
     }
     else{
@@ -686,8 +687,11 @@ int ExtendedDMG::get_supervoxel_index(Eigen::Vector3f contact){
 Eigen::Vector3f ExtendedDMG::get_normal_at_contact(Eigen::Vector3f contact){
     //get the index of the supervoxel
     int idx=get_supervoxel_index(contact);
+    std::cout<<"supervoxel index used: "<<idx<<std::endl;
     //get the normal of that component
+    std::cout<<"component used for getting normals: "<<nodes_to_connected_component.at(idx)<<std::endl;
     Eigen::Vector3f normal=component_to_average_normal.at(nodes_to_connected_component.at(idx));
+    std::cout<<"which gives: "<<normal.transpose()<<std::endl;
     return normal;
 }
 
@@ -1035,10 +1039,10 @@ void ExtendedDMG::visualize_results(){
     draw_finger("finger4_secondary", regrasp1_secondary, regrasp2_orientation, 3);
 
     //DEBUG
-    // std::cout<<" +++ initial pose: "<<master_initial_pose.transpose()<<std::endl;
+    std::cout<<std::endl<<" +++ initial pose: "<<master_initial_pose.transpose()<<std::endl;
     // std::cout<<"  component: "<<nodes_to_connected_component.at(get_supervoxel_index(master_initial_pose.block<3, 1>(0, 0)*1000.0))<<std::endl;
-    // Eigen::Quaternionf quatquat(master_initial_pose(6, 0), master_initial_pose(3, 0), master_initial_pose(4, 0), master_initial_pose(5, 0));
-    // int initial_angle_test=pose_to_angle(quatquat, nodes_to_connected_component.at(get_supervoxel_index(master_initial_pose.block<3, 1>(0, 0)*1000.0)));
+    Eigen::Quaternionf quatquat(master_initial_pose(6, 0), master_initial_pose(3, 0), master_initial_pose(4, 0), master_initial_pose(5, 0));
+    int initial_angle_test=pose_to_angle(quatquat, nodes_to_connected_component.at(get_supervoxel_index(master_initial_pose.block<3, 1>(0, 0))));
     // std::cout<<std::endl<<" +++++ initial angle test: "<<initial_angle_test<<std::endl;
 
     // std::cout<<"  +++desired pose: "<<master_desired_pose.transpose()<<std::endl;
@@ -1067,6 +1071,23 @@ void ExtendedDMG::visualize_results(){
             // regrasp_viewer->addSphere(all_centroids_cloud->at(supervoxel_to_pc_idx.at(n.first)), radius, 0.0, 0.0, 1.0, "node_"+std::to_string(n.first));
             // regrasp_viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.2, "node_"+std::to_string(n.first));        
         }
+    }
+
+    //draw the fingers during the transition
+    std::cout<<"--------------------------------------------------------------------------"<<std::endl;
+    Eigen::Vector3f current_point=initial_pose_1.block<3, 1>(0, 0);
+    std::cout<<"new point: "<<current_point.transpose()<<std::endl;
+    double current_angle=double(initial_angle_test)*M_PI/180.0;
+    std::cout<<"new angle: "<<current_angle<<std::endl;
+    for(int i=0; i<r_translations[0].size()-1; i++){
+        current_point(0)=r_translations[0][i].x;
+        current_point(1)=r_translations[0][i].y;
+        current_point(2)=r_translations[0][i].z;
+        std::cout<<"new point: "<<current_point.transpose()<<std::endl;
+        current_angle=current_angle+r_rotations[0][i];
+        std::cout<<"new angle: "<<current_angle<<std::endl;
+
+        draw_finger("f_path"+std::to_string(i), current_point*1000.0, angle_to_pose(current_angle, current_point), 0);
     }
 
 }
@@ -1143,14 +1164,15 @@ Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3
     Eigen::Vector3f ny=get_orthogonal_axis(nx);
     Eigen::Vector3f nz=nx.cross(ny);
 
-    // std::cout<<"the angle "<<angle*180/M_PI<<"  becomes: "<<std::endl;
+    std::cout<<"the angle "<<angle<<" i.e. "<<angle*180/M_PI<<"  becomes: "<<std::endl;
     bool inwards=is_normal_inwards(contact, nx);
     if(inwards){
-        // std::cout<<"which is inwards"<<std::endl;
+        std::cout<<"which is inwards"<<std::endl;
         angle=angle-M_PI;
     }
 
-    // // std::cout<<"normal: "<<nx.transpose()<<std::endl;
+    std::cout<<"normal: "<<nx.transpose()<<std::endl;
+
     // // std::cout<<"ny ax : "<<ny.transpose()<<std::endl;
     // std::cout<<"IN angle to pose ---- angle: "<<angle<<std::endl;
 
@@ -1210,7 +1232,7 @@ Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3
     // Eigen::Quaternion<float> q(finger_pose);
 
     Eigen::Vector3f gripper_x;
-    gripper_x<<0, cos(angle), sin(angle);
+    gripper_x<<0, cos(angle+M_PI), sin(angle+M_PI);
     Eigen::Vector3f gripper_z;
     gripper_z<<1, 0, 0; //because it is nx in the component
     Eigen::Vector3f gripper_y=gripper_z.cross(gripper_x);
@@ -1241,6 +1263,7 @@ Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3
     component_matrix(2,2)=nz(2);
 
     Eigen::Matrix3f gripper_pose=component_matrix*gripper_pose_in_component;
+    // Eigen::Matrix3f gripper_pose=Eigen::Matrix3f::Identity(3, 3);
 
     Eigen::Quaternion<float> q(gripper_pose);
     std::cout<<q.x()<<"  "<<q.y()<<"  "<<q.z()<<"  "<<q.w()<<std::endl;

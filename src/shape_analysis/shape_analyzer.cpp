@@ -817,12 +817,12 @@ void ShapeAnalyzer::refine_adjacency(){
     bool done=false;
 
     for(int component=0; component<=component_id; component++){
-        //std::cout<<"component: "<<component<<std::endl;
+        // std::cout<<"component: "<<component<<std::endl;
         
         //get the average normal of the component:
         Eigen::Vector3f nx, ny, nz;
         nx=component_to_average_normal.at(component);
-        //std::cout<<"========AVERAGE NORMAL: "<<nx.transpose()<<std::endl;
+        // std::cout<<"========AVERAGE NORMAL: "<<nx.transpose()<<std::endl;
         if(fabs(nx(0))>0.00000001){
             ny(1)=0;
             ny(2)=sqrt(nx(0)*nx(0)/(nx(0)*nx(0)+nx(2)*nx(2)));
@@ -1108,8 +1108,8 @@ void ShapeAnalyzer::refine_adjacency(){
                         }
                     }
                 }
-                if(true){
-                // if(component<8){
+                // if(true){
+                if(component==4){
                 // if(true){
                 //if(nodes[idx] == 53 || nodes[idx] == 58 || nodes[idx] == 55 || nodes[idx] ==114){
                 // if(nodes[idx] == 53){
