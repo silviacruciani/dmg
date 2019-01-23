@@ -227,8 +227,9 @@ namespace shape_analysis{
             @param position the 3D position (in mm)
             @param orientation the 3D orientation
             @param color_profile 0, 1, 2 depending on the gripper and regrasp
+            @param viewer 0 if first viewer, 1 if regrasp viewer
         */
-        void draw_finger(std::string name, Eigen::Vector3f position, Eigen::Quaternion<float> orientation, int color_profile);
+        void draw_finger(std::string name, Eigen::Vector3f position, Eigen::Quaternion<float> orientation, int color_profile, bool is_egrasp_viewer);
 
         /**
             Draws the given path

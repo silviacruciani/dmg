@@ -755,6 +755,7 @@ int ExtendedDMG::pose_to_angle(Eigen::Quaternion<float> q, int component){
     // std::cout<<"x prime: "<<x_prime.transpose()<<std::endl;
     // std::cout<<"given quaternion: "<<q.x()<<" "<<q.y()<<" "<<q.z()<<" "<<q.w()<<std::endl<<"  xprime: "<<x_prime.transpose()<<std::endl;
     double angle=atan2(x_prime(2), x_prime(1));
+    // double angle=atan2(x_prime(2), x_prime(1))-M_PI;
     if(inwards){
         angle=angle+M_PI;
     }
@@ -1010,13 +1011,13 @@ void ExtendedDMG::visualize_results(){
     //add the two initial finger poses
     // std::cout<<"initial pose 1: "<<initial_pose_1.transpose()<<std::endl;
     // std::cout<<"initial pose 2: "<<initial_pose_2.transpose()<<std::endl;
-    draw_finger("finger1_principal", initial_pose_1.block<3, 1>(0, 0)*1000.0, Eigen::Quaternionf(initial_pose_1(6, 0), initial_pose_1(3, 0), initial_pose_1(4, 0), initial_pose_1(5, 0)), 0);
-    draw_finger("finger1_secondary", initial_pose_2.block<3, 1>(0, 0)*1000.0, Eigen::Quaternionf(initial_pose_2(6, 0), initial_pose_2(3, 0), initial_pose_2(4, 0), initial_pose_2(5, 0)), 0);
+    draw_finger("finger1_principal", initial_pose_1.block<3, 1>(0, 0)*1000.0, Eigen::Quaternionf(initial_pose_1(6, 0), initial_pose_1(3, 0), initial_pose_1(4, 0), initial_pose_1(5, 0)), 0, true);
+    draw_finger("finger1_secondary", initial_pose_2.block<3, 1>(0, 0)*1000.0, Eigen::Quaternionf(initial_pose_2(6, 0), initial_pose_2(3, 0), initial_pose_2(4, 0), initial_pose_2(5, 0)), 0, true);
     //add the two desired finger poses
     // std::cout<<"desired pose 1: "<<desired_pose_1.transpose()<<std::endl;
     // std::cout<<"desired pose 2: "<<desired_pose_2.transpose()<<std::endl;
-    draw_finger("finger3_principal", desired_pose_1.block<3, 1>(0, 0)*1000.0, Eigen::Quaternionf(desired_pose_1(6, 0), desired_pose_1(3, 0), desired_pose_1(4, 0), desired_pose_1(5, 0)), 2);
-    draw_finger("finger3_secondary", desired_pose_2.block<3, 1>(0, 0)*1000.0, Eigen::Quaternionf(desired_pose_2(6, 0), desired_pose_2(3, 0), desired_pose_2(4, 0), desired_pose_2(5, 0)), 2);
+    draw_finger("finger3_principal", desired_pose_1.block<3, 1>(0, 0)*1000.0, Eigen::Quaternionf(desired_pose_1(6, 0), desired_pose_1(3, 0), desired_pose_1(4, 0), desired_pose_1(5, 0)), 2, true);
+    draw_finger("finger3_secondary", desired_pose_2.block<3, 1>(0, 0)*1000.0, Eigen::Quaternionf(desired_pose_2(6, 0), desired_pose_2(3, 0), desired_pose_2(4, 0), desired_pose_2(5, 0)), 2, true);
     
     //add the regrasp pose (first, need to get the proper orientation!)
     std::cout<<std::endl<<std::endl<<"++++++++++++++++++++++++++++++++++"<<std::endl;
@@ -1028,15 +1029,15 @@ void ExtendedDMG::visualize_results(){
     // std::cout<<"regrasp pose 1: "<<regrasp2_principal.transpose()<<" "<<regrasp_orientation.x()<<" "<<regrasp_orientation.y()<<" "<<regrasp_orientation.z()<<" "<<regrasp_orientation.w()<<std::endl;
     // std::cout<<"regrasp pose 2: "<<regrasp2_secondary.transpose()<<" "<<regrasp_orientation.x()<<" "<<regrasp_orientation.y()<<" "<<regrasp_orientation.z()<<" "<<regrasp_orientation.w()<<std::endl;
     
-    draw_finger("finger2_principal", regrasp2_principal, regrasp_orientation, 1);
-    draw_finger("finger2_secondary", regrasp2_secondary, regrasp_orientation, 1);
+    draw_finger("finger2_principal", regrasp2_principal, regrasp_orientation, 1, true);
+    draw_finger("finger2_secondary", regrasp2_secondary, regrasp_orientation, 1, true);
 
     std::cout<<"first gripper regrasp angle [deg]: "<<regrasp1_angle<<std::endl; 
 
     Eigen::Quaternionf regrasp2_orientation=angle_to_pose(regrasp1_angle, regrasp1_principal);
     //draw also the second regrasp (for 1st gripper)
-    draw_finger("finger4_principal", regrasp1_principal, regrasp2_orientation, 3);
-    draw_finger("finger4_secondary", regrasp1_secondary, regrasp2_orientation, 3);
+    draw_finger("finger4_principal", regrasp1_principal, regrasp2_orientation, 3, true);
+    draw_finger("finger4_secondary", regrasp1_secondary, regrasp2_orientation, 3, true);
 
     //DEBUG
     std::cout<<std::endl<<" +++ initial pose: "<<master_initial_pose.transpose()<<std::endl;
@@ -1079,15 +1080,17 @@ void ExtendedDMG::visualize_results(){
     std::cout<<"new point: "<<current_point.transpose()<<std::endl;
     double current_angle=double(initial_angle_test)*M_PI/180.0;
     std::cout<<"new angle: "<<current_angle<<std::endl;
-    for(int i=0; i<r_translations[0].size()-1; i++){
+    for(int i=0; i<r_translations[0].size(); i++){
         current_point(0)=r_translations[0][i].x;
         current_point(1)=r_translations[0][i].y;
         current_point(2)=r_translations[0][i].z;
+        //draw before and after the rotation
+        draw_finger("f_path_before"+std::to_string(i), current_point*1000.0, angle_to_pose(current_angle, current_point), 1, false);
         std::cout<<"new point: "<<current_point.transpose()<<std::endl;
         current_angle=current_angle+r_rotations[0][i];
         std::cout<<"new angle: "<<current_angle<<std::endl;
 
-        draw_finger("f_path"+std::to_string(i), current_point*1000.0, angle_to_pose(current_angle, current_point), 0);
+        // draw_finger("f_path_after"+std::to_string(i), current_point*1000.0, angle_to_pose(current_angle, current_point), 1, false);
     }
 
 }
@@ -1436,11 +1439,21 @@ int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_princ
     return best_possible_angle;
 }
 
-void ExtendedDMG::draw_finger(std::string name, Eigen::Vector3f position, Eigen::Quaternion<float> orientation, int color_profile){
-    regrasp_viewer->removeShape(name);
+void ExtendedDMG::draw_finger(std::string name, Eigen::Vector3f position, Eigen::Quaternion<float> orientation, int color_profile, bool is_regrasp_viewer){
+    if(is_regrasp_viewer){
+        regrasp_viewer->removeShape(name);
+    }
+    else{
+        viewer->removeShape(name);
+    }
     Eigen::Matrix3f cube_rot_matrix=orientation.toRotationMatrix();
     Eigen::Vector3f cube_pos=position+cube_rot_matrix*Eigen::Vector3f(-l_finger/2+1.5, 0, 0);
-    regrasp_viewer->addCube(cube_pos, orientation, l_finger, 6, 6, name);
+    if(is_regrasp_viewer){
+        regrasp_viewer->addCube(cube_pos, orientation, l_finger, 6, 6, name);
+    }
+    else{
+        viewer->addCube(cube_pos, orientation, l_finger, 6, 6, name);
+    }
     double r, g, b;
     switch(color_profile){
         case 0:
@@ -1465,15 +1478,24 @@ void ExtendedDMG::draw_finger(std::string name, Eigen::Vector3f position, Eigen:
             break;
     }
 
-    regrasp_viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, r, g, b, name);
-    regrasp_viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.3, name);
+    if(is_regrasp_viewer){
+        regrasp_viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, r, g, b, name);
+        regrasp_viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.3, name);
+    }
+    else{
+        viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, r, g, b, name);
+        viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.3, name);
+    }
 
     Eigen::Matrix4f transf=Eigen::Matrix4f::Identity();
     transf.block<3, 3>(0, 0)=orientation.toRotationMatrix();
     transf.block<3,1>(0, 3)=cube_pos;
     Eigen::Affine3f aff;
     aff.matrix()=transf;
-    regrasp_viewer->addCoordinateSystem(3.0, aff, "frame_"+name);
+    if(is_regrasp_viewer){
+        regrasp_viewer->addCoordinateSystem(3.0, aff, "frame_"+name);
+    }
+    //no coordinate systems in the first viewer
 
 }
 

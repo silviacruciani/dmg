@@ -168,7 +168,7 @@ void ShapeAnalyzer::get_supervoxels(){
     //get the normals
     sv_normal_cloud = super.makeSupervoxelNormalCloud (supervoxel_clusters);
     std::cout<<"VoxelNormalCloud size: "<<sv_normal_cloud->points.size()<<std::endl;
-    viewer->addPointCloudNormals<pcl::PointNormal> (sv_normal_cloud,1, 5.0, "supervoxel_normals", v1);
+    // viewer->addPointCloudNormals<pcl::PointNormal> (sv_normal_cloud,1, 5.0, "supervoxel_normals", v1);
 
     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr centroids_cloud(new pcl::PointCloud<pcl::PointXYZRGBA>);
     pcl::PointCloud<pcl::Normal>::Ptr normals_cloud(new pcl::PointCloud<pcl::Normal>);
@@ -1109,8 +1109,8 @@ void ShapeAnalyzer::refine_adjacency(){
                     }
                 }
                 // if(true){
-                if(component==4){
-                // if(true){
+                // if(component==4){
+                if(false){
                 //if(nodes[idx] == 53 || nodes[idx] == 58 || nodes[idx] == 55 || nodes[idx] ==114){
                 // if(nodes[idx] == 53){
                     //std::cout<<"==========idx: "<<idx<<std::endl;

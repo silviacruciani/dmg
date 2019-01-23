@@ -5,7 +5,7 @@
     <arg name="file_path" default="$(find shape_analysis)/shapes/"/>
     <arg name="fingers_length" default="0.04"/>
     <arg name="voxel_res" default="1.0"/>
-    <arg name="seed_res" default="13.0"/>
+    <arg name="seed_res" default="12.0"/>
     <arg name="color_imp" default="0.0"/>
     <arg name="spatial_imp" default="1.0"/>
     <arg name="normal_imp" default="1.0"/>
