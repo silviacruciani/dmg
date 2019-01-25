@@ -362,7 +362,7 @@ void ShapeAnalyzer::set_initial_contact(geometry_msgs::Point p, geometry_msgs::Q
     transf.block<3,1>(0, 3)=cube_pos;
     Eigen::Affine3f aff;
     aff.matrix()=transf;
-    viewer->addCoordinateSystem(3.0, aff, "pose_init_"+std::to_string(finger_id));
+    // viewer->addCoordinateSystem(3.0, aff, "pose_init_"+std::to_string(finger_id));
     viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 0.0, 0.0, "initial contact "+std::to_string(finger_id));
     viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.3, "initial contact "+std::to_string(finger_id));
 
@@ -398,7 +398,7 @@ void ShapeAnalyzer::set_desired_contact(geometry_msgs::Point p, geometry_msgs::Q
     transf.block<3,1>(0, 3)=cube_pos;
     Eigen::Affine3f aff;
     aff.matrix()=transf;
-    viewer->addCoordinateSystem(3.0, aff, "pose_des_"+std::to_string(finger_id));
+    // viewer->addCoordinateSystem(3.0, aff, "pose_des_"+std::to_string(finger_id));
     viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 1.0, 0.0, "desired contact "+std::to_string(finger_id));
     viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.3, "desired contact "+std::to_string(finger_id));
 
@@ -1805,6 +1805,8 @@ std::pair<std::stack<std::pair<int, int>>, std::stack<int>> ShapeAnalyzer::get_e
     std::stack<int> S;
     std::stack<std::pair<int, int>> S_node;
     std::vector<int> deleted_indexes;
+    double sphere_size=1;
+    std::cout<<"goal node: "<<goal_node.first<<" "<<goal_node.second<<std::endl;
     //iterate over the vertices
     while(Q.size()>0){
         //std::cout<<"=========================================================================== size: "<<Q.size()<<std::endl;
@@ -1812,6 +1814,10 @@ std::pair<std::stack<std::pair<int, int>>, std::stack<int>> ShapeAnalyzer::get_e
         std::vector<double>::iterator it=std::min_element(std::begin(dist_faked), std::end(dist_faked)); 
         u=std::distance(std::begin(dist_faked), it);
         u_node=int_idx_to_node.at(u);
+        int pc_i=supervoxel_to_pc_idx.at(u_node.first);
+        std::cout<<"checking : "<<u<<" that is node: "<<u_node.first<<"  "<<u_node.second<<std::endl;
+        // viewer->addSphere(all_centroids_cloud->at(pc_i), sphere_size, 0.0, 1.0, 0.0,"voxel"+ std::to_string(pc_i));
+        sphere_size+=0.5;
         //check if this element had already been removed. If so, it means the path cannot be found
         if(std::find(deleted_indexes.begin(), deleted_indexes.end(),u)!=deleted_indexes.end()){
             std::cout<<"the desired path is invalid for contact-free secondary finger!"<<std::endl;
@@ -1832,7 +1838,7 @@ std::pair<std::stack<std::pair<int, int>>, std::stack<int>> ShapeAnalyzer::get_e
                 std::multimap<std::pair<int, int>, std::pair<int, int>>::iterator adjacent_itr=graph.equal_range(u_node).first;
                 for ( ; adjacent_itr!=graph.equal_range(u_node).second; adjacent_itr++){
                     //if this element is still in Q
-                    //std::cout<<"current adjacent element "<<adjacent_itr->second.first<<" "<<adjacent_itr->second.second<<std::endl;
+                    std::cout<<"current adjacent element "<<adjacent_itr->second.first<<" "<<adjacent_itr->second.second<<std::endl;
                     int element=node_to_int_idx.at(adjacent_itr->second);
                     //std::cout<<"OK 0"<<std::endl;
                     if(Q.find(element)!=Q.end()){
@@ -1879,9 +1885,9 @@ std::pair<std::stack<std::pair<int, int>>, std::stack<int>> ShapeAnalyzer::get_e
                                     //std::cout<<"FFFFFFF2: "<<extended_nodes_to_connected_component.at(opposite_component_init)<<std::endl;
                                     //if a node is not in this map, it means it is very disconnected
                                     if(extended_nodes_to_connected_component.count(checking_node)>0){         
-                                        if(extended_nodes_to_connected_component.at(checking_node)==extended_nodes_to_connected_component.at(opposite_component_init)){
+                                        if(extended_nodes_to_connected_component.at(checking_node)==extended_nodes_to_connected_component.at(opposite_component_init) || goal_node==adjacent_itr->second){
                                             slave_dist=0;
-                                            //std::cout<<"The slave contact is in the connected component."<<std::endl;
+                                            std::cout<<"The slave contact is in the connected component."<<std::endl;
                                             not_equal=false;
                                             break;
                                         }
@@ -2300,8 +2306,8 @@ std::pair<std::pair<int, int>, std::pair<int, int>> ShapeAnalyzer::get_int_angle
 void ShapeAnalyzer::compute_extended_angle_sequence(std::vector<std::pair<int, int>> path, int finger_id, int init_angle, int desired_angle){
     int index=0;
     std::set<int> current_node_angles=node_component_to_angles_subset.at(path[index]);
-    std::cout<<"Initial index: "<<index<<std::endl;
-    std::cout<<"size: "<<current_node_angles.size()<<std::endl;
+    // std::cout<<"Initial index: "<<index<<std::endl;
+    // std::cout<<"size: "<<current_node_angles.size()<<std::endl;
     std::set<int> prev_node_angles;
     angle_sequence=std::vector<double>();
     angle_sequence.resize(path.size());
@@ -2309,29 +2315,47 @@ void ShapeAnalyzer::compute_extended_angle_sequence(std::vector<std::pair<int, i
     angle_sequence[index]=double(init_angle)*M_PI/180.0;
     index=index+1;
     int current_angle=init_angle;
-    std::cout<<"Index: "<<index<<std::endl;
+    // std::cout<<"Index: "<<index<<std::endl;
+    // std::cout<<"current angle: "<<current_angle<<std::endl;
     while(index<path.size()){
         prev_node_angles=current_node_angles;
         if(node_component_to_angles_subset.count(path[index])<1){
             std::cout<<"Error in getting angle subset"<<std::endl;
             return;
         }
-        std::cout<<"Index: "<<index<<std::endl;
+        // std::cout<<"Index: "<<index<<std::endl;
         current_node_angles=node_component_to_angles_subset.at(path[index]);
-        std::cout<<"size: "<<current_node_angles.size()<<std::endl;
+        // std::cout<<"size: "<<current_node_angles.size()<<std::endl;
         std::set<int> intersection;
+        // std::cout<<"current angle: "<<current_angle<<std::endl;
         std::set_intersection(current_node_angles.begin(), current_node_angles.end(), prev_node_angles.begin(), prev_node_angles.end(), std::inserter(intersection, intersection.begin()));
         //check if the current angle is in the intersection (i.e. the translation can be with the gripper at this angle) 
         if(intersection.find(current_angle)!=intersection.end()){
             angle_sequence[index]=double(current_angle)*M_PI/180.0;
         }
         else{
+            std::cout<<"angle not in intersection!"<<std::endl;
             if(intersection.size()==0){
                 std::cout<<"error"<<std::endl;
                 std::cout<<"The intersection is empty! The adjacency is wrong. Index: "<<index<<std::endl;
             }
             else{//in this case the element is random. Choose one that is closer to the one we already have
                 current_angle=*intersection.begin();
+                // std::cout<<"listing all angle possibilities: "<<std::endl;
+                // //attempt at minimizing distance from the desired angle;
+                // int dist=180;
+                // for(int ang : intersection){
+                //     std::cout<<ang<<" ";
+                //     int new_dis=abs(desired_angle-ang);
+                //     if(new_dis>180){
+                //         new_dis = abs(new_dis-180);
+                //     }
+                //     if(new_dis<dist){
+                //         current_angle=ang;
+                //         dist=new_dis;
+                //     }
+                // }
+                // std::cout<<std::endl;
             }
             angle_sequence[index]=double(current_angle)*M_PI/180.0;
         }
@@ -2345,5 +2369,6 @@ void ShapeAnalyzer::compute_extended_angle_sequence(std::vector<std::pair<int, i
         std::cout<<"angle ["<<i<<"] = "<<angle_sequence[i]<<std::endl;
         angle_sequence[i]=last_angle-angle_sequence[i];
         last_angle=last_angle-angle_sequence[i];//uptade to the next angle
+        // std::cout<<"rotations["<<i<<"] = "<<angle_sequence[i]<<std::endl;
     }
 }
