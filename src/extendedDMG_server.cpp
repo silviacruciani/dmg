@@ -99,8 +99,12 @@ bool ExtendedDMGServer::compute_path(ExtendedInHandPath::Request &req, ExtendedI
     shape_analizer->set_desired_contact(req.desired_grasp[0].position, req.desired_grasp[0].orientation, 0);
     shape_analizer->set_desired_contact(req.desired_grasp[1].position, req.desired_grasp[1].orientation, 1);
     //for the path computation, still implementation in the other class is needed
-    shape_analizer->compute_extended_path(0); //the master/slave finger still has to be improved and detailed how to chose which is which
-    shape_analizer->visualize_results();
+    try{
+        shape_analizer->compute_extended_path(0); //the master/slave finger still has to be improved and detailed how to chose which is which
+        shape_analizer->visualize_results();
+    }catch(...){
+        std::cout<<"ERROR OCCURRED"<<std::endl;
+    }
     //now transform everything into the srv compatible types
     std::vector<std::vector<geometry_msgs::Point>> translations=shape_analizer->get_translation_sequence();
     res.translations_1=translations[0];

@@ -1075,23 +1075,23 @@ void ExtendedDMG::visualize_results(){
     }
 
     //draw the fingers during the transition
-    std::cout<<"--------------------------------------------------------------------------"<<std::endl;
-    Eigen::Vector3f current_point=initial_pose_1.block<3, 1>(0, 0);
-    std::cout<<"new point: "<<current_point.transpose()<<std::endl;
-    double current_angle=double(initial_angle_test)*M_PI/180.0;
-    std::cout<<"new angle: "<<current_angle<<std::endl<<std::endl;
-    for(int i=1; i<r_translations[0].size()-1; i++){
-        current_point(0)=r_translations[0][i].x;
-        current_point(1)=r_translations[0][i].y;
-        current_point(2)=r_translations[0][i].z;
-        //draw before and after the rotation
-        // draw_finger("f_path_before"+std::to_string(i), current_point*1000.0, angle_to_pose(current_angle, current_point), 1, false);
-        std::cout<<"new point: "<<current_point.transpose()<<std::endl;
-        current_angle=current_angle+r_rotations[0][i-1];
-        std::cout<<"new angle: "<<current_angle<<std::endl<<std::endl;
+    // std::cout<<"--------------------------------------------------------------------------"<<std::endl;
+    // Eigen::Vector3f current_point=initial_pose_1.block<3, 1>(0, 0);
+    // std::cout<<"new point: "<<current_point.transpose()<<std::endl;
+    // double current_angle=double(initial_angle_test)*M_PI/180.0;
+    // std::cout<<"new angle: "<<current_angle<<std::endl<<std::endl;
+    // for(int i=1; i<r_translations[0].size()-1; i++){
+    //     current_point(0)=r_translations[0][i].x;
+    //     current_point(1)=r_translations[0][i].y;
+    //     current_point(2)=r_translations[0][i].z;
+    //     //draw before and after the rotation
+    //     // draw_finger("f_path_before"+std::to_string(i), current_point*1000.0, angle_to_pose(current_angle, current_point), 1, false);
+    //     std::cout<<"new point: "<<current_point.transpose()<<std::endl;
+    //     current_angle=current_angle+r_rotations[0][i-1];
+    //     std::cout<<"new angle: "<<current_angle<<std::endl<<std::endl;
 
-        draw_finger("f_path_after"+std::to_string(i), current_point*1000.0, angle_to_pose(current_angle, current_point), 1, false);
-    }
+    //     draw_finger("f_path_after"+std::to_string(i), current_point*1000.0, angle_to_pose(current_angle, current_point), 1, false);
+    // }
 
 }
 
