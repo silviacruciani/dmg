@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <launch>
     <!-- set all the arguments default values -->
-    <arg name="object_file" default="shape14_high_res.pcd"/>
+    <arg name="object_file" default="shape13_high_res.pcd"/>
     <arg name="file_path" default="$(find shape_analysis)/shapes/"/>
     <arg name="fingers_length" default="0.04"/>
     <arg name="voxel_res" default="1.0"/>
