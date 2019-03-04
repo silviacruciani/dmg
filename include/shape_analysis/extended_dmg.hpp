@@ -133,9 +133,10 @@ namespace shape_analysis{
         /**
             Obtains the supervoxel centroid closest to the contact
             @param contact the finger contact point
+            @param scale true if the point is not in the mm scale of the object
             @return the supervoxel index
         */
-        int get_supervoxel_index(Eigen::Vector3f contact);
+        int get_supervoxel_index(Eigen::Vector3f contact, bool scale);
 
         /**
             Gets the normal vector of the surface in contact

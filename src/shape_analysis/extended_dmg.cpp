@@ -83,8 +83,8 @@ int ExtendedDMG::compute_extended_path(int finger_id){
     //the points are in meters, but the object's shape is in mm, so rescale:
     contact_point1=1000.0*Eigen::Vector3f(desired_pose_1(0, 0), desired_pose_1(1, 0), desired_pose_1(2, 0));
     contact_point2=1000.0*Eigen::Vector3f(desired_pose_2(0, 0), desired_pose_2(1, 0), desired_pose_2(2, 0));
-    int desired_centroid_idx_1=get_supervoxel_index(contact_point1);
-    int desired_centroid_idx_2=get_supervoxel_index(contact_point2);
+    int desired_centroid_idx_1=get_supervoxel_index(contact_point1, false);
+    int desired_centroid_idx_2=get_supervoxel_index(contact_point2, false);
     //the line between the two contacts:
     line=contact_point2-contact_point1;
     line.normalize(); //this is the direction for the two rays to intersect. It goes from contact1 to contact2
@@ -197,7 +197,7 @@ int ExtendedDMG::compute_extended_path(int finger_id){
         regrasp1_secondary=contact_point2;
         int_regrasp1_angle=principal_desired_angle;
         //add it to the list
-        int regrasp1_node=get_supervoxel_index(regrasp1_principal);
+        int regrasp1_node=get_supervoxel_index(regrasp1_principal, false);
         std::cout<<"   node: "<<regrasp1_node<<std::endl;
         int ang_component=node_angle_to_angle_component.at(std::pair<int, int>(regrasp1_node, int_regrasp1_angle));
         regrasping_candidate_nodes[0].push_back(std::pair<int, int>(regrasp1_node, ang_component));
@@ -260,7 +260,7 @@ int ExtendedDMG::compute_extended_path(int finger_id){
     release_contact_1=1000.0*initial_pose_1.block<3,1>(0, 0);
     release_contact_2=1000.0*initial_pose_2.block<3,1>(0, 0);
     Eigen::Quaternion<float> quat(initial_pose_1(6), initial_pose_1(3), initial_pose_1(4), initial_pose_1(5));
-    int release_angle=pose_to_angle(quat, nodes_to_connected_component.at(get_supervoxel_index(release_contact_1)));
+    int release_angle=pose_to_angle(quat, nodes_to_connected_component.at(get_supervoxel_index(release_contact_1, false)));
 
 
 
@@ -272,10 +272,10 @@ int ExtendedDMG::compute_extended_path(int finger_id){
     //now, we loop for all the possible contact points until we find a valid solution!
     bool valid_configuration=false;
     //get the extended target nodes (the final goal)
-    int ang_component1=node_angle_to_angle_component.at(std::pair<int, int>(get_supervoxel_index(contact_point1), principal_desired_angle));
-    std::pair<int, int> regrasp_node_goal1=std::pair<int, int>(get_supervoxel_index(contact_point1), ang_component1);
-    int ang_component2=node_angle_to_angle_component.at(std::pair<int, int>(get_supervoxel_index(contact_point2), secondary_desired_angle));
-    std::pair<int, int> regrasp_node_goal2=std::pair<int, int>(get_supervoxel_index(contact_point2), ang_component2);
+    int ang_component1=node_angle_to_angle_component.at(std::pair<int, int>(get_supervoxel_index(contact_point1, false), principal_desired_angle));
+    std::pair<int, int> regrasp_node_goal1=std::pair<int, int>(get_supervoxel_index(contact_point1, false), ang_component1);
+    int ang_component2=node_angle_to_angle_component.at(std::pair<int, int>(get_supervoxel_index(contact_point2, false), secondary_desired_angle));
+    std::pair<int, int> regrasp_node_goal2=std::pair<int, int>(get_supervoxel_index(contact_point2, false), ang_component2);
 
     for(int idx=0; idx<regrasping_candidate_nodes[0].size() && !valid_configuration; idx++){
         std::cout<<"Iteration: "<<idx<<std::endl;
@@ -324,6 +324,7 @@ int ExtendedDMG::compute_extended_path(int finger_id){
                 regrasp2_node2=r_it->first.second;
             }
         }
+        std::cout<<std::endl<<"********* the regrasp nodes are: "<<regrasp2_node1<<" "<<regrasp2_node2<<std::endl<<std::endl;
 
         //store the values in eigen vectors:
         regrasp2_principal(0)=all_centroids_cloud->at(supervoxel_to_pc_idx[regrasp2_node1]).x;
@@ -382,10 +383,10 @@ int ExtendedDMG::compute_extended_path(int finger_id){
     // get the path from of the regrasping thing. Only if it is not direct regrasp
     if(!direct_regrasp_1||angle_in_collision){
         std::cout<<"computing the path to be executed after regrasp!"<<std::endl;
-        int regrasp1_secondary_node=get_supervoxel_index(regrasp1_secondary);
+        int regrasp1_secondary_node=get_supervoxel_index(regrasp1_secondary, false);
         int regrasp1_angle_secondary= pose_to_angle(angle_to_pose(M_PI*float(int_regrasp1_angle)/180.0, regrasp1_principal), nodes_to_connected_component.at(regrasp1_secondary_node));
         int regrasp1_angle_component_secondary=node_angle_to_angle_component.at(std::pair<int, int>(regrasp1_secondary_node, regrasp1_angle_secondary));
-        std::pair<std::stack<std::pair<int, int>>, std::stack<int>> regrasp_path=ShapeAnalyzer::get_extended_path(extended_refined_adjacency, get_supervoxel_index(regrasp1_principal), regrasp_node_goal1.first, contact_point2-contact_point1, std::pair<int, int>(regrasp1_secondary_node, regrasp1_angle_component_secondary), regrasp_node_goal2, int_regrasp1_angle, principal_desired_angle);
+        std::pair<std::stack<std::pair<int, int>>, std::stack<int>> regrasp_path=ShapeAnalyzer::get_extended_path(extended_refined_adjacency, get_supervoxel_index(regrasp1_principal, false), regrasp_node_goal1.first, contact_point2-contact_point1, std::pair<int, int>(regrasp1_secondary_node, regrasp1_angle_component_secondary), regrasp_node_goal2, int_regrasp1_angle, principal_desired_angle);
         std::cout<<"here is fine"<<std::endl;
         //put this into a vector for the sequence!
         std::pair<int, int> idx;
@@ -502,7 +503,7 @@ std::vector<Eigen::Vector3f> ExtendedDMG::get_ray_intersections(Eigen::Vector3f 
 
 bool ExtendedDMG::is_in_collision(Eigen::Vector3f contact, double angle){
     int int_angle=filter_angle(angle);
-    int supervoxel_idx=get_supervoxel_index(contact);
+    int supervoxel_idx=get_supervoxel_index(contact, false);
     //check if this angle is good
     std::vector<int> angle_components=node_to_angle_components.at(supervoxel_idx);
     for(int i=0; i<angle_components.size(); i++){
@@ -523,7 +524,7 @@ void ExtendedDMG::find_available_regrasping_points(Eigen::Vector3f principal_con
     Eigen::Vector3f line=secondary_contact-principal_contact;
 
     //get the closest node to the principal contact point
-    int principal_supervoxel_idx=get_supervoxel_index(principal_contact);
+    int principal_supervoxel_idx=get_supervoxel_index(principal_contact, false);
     //get the index of the angle component
     std::cout<<"principal angle: "<<principal_angle<<std::endl;
     std::cout<<"secondary angle: "<<secondary_angle<<std::endl;
@@ -551,7 +552,7 @@ void ExtendedDMG::find_available_regrasping_points(Eigen::Vector3f principal_con
     // std::cout<<"got component: "<<principal_cc<<std::endl;
 
     //do the same to get the secondary connected component
-    int secondary_supervoxel_idx=get_supervoxel_index(secondary_contact);
+    int secondary_supervoxel_idx=get_supervoxel_index(secondary_contact, false);
     // std::cout<<"here in the processing: 3.5"<<std::endl;
     // std::cout<<"secondary_supervoxel_idx: "<<secondary_supervoxel_idx<<std::endl;
     // std::cout<<"secondary node angles: ";
@@ -659,15 +660,22 @@ void ExtendedDMG::find_available_regrasping_points(Eigen::Vector3f principal_con
     std::cout<<"LOOP ENDED"<<std::endl<<std::endl;
 }
 
-int ExtendedDMG::get_supervoxel_index(Eigen::Vector3f contact){
+int ExtendedDMG::get_supervoxel_index(Eigen::Vector3f contact, bool scale){
     //put the contact in pcl point
     pcl::PointXYZRGBA input;
-    input.x=contact(0)*1000.0;
-    input.y=contact(1)*1000.0;
-    input.z=contact(2)*1000.0;
+    if(scale){
+        input.x=contact(0)*1000.0;
+        input.y=contact(1)*1000.0;
+        input.z=contact(2)*1000.0;
+    }
+    else{
+        input.x=contact(0);
+        input.y=contact(1);
+        input.z=contact(2);
+    }
 
     //now start searching for the nearest neighbor
-    int K=1;
+    int K=3;
 
     std::vector<int> pointIdxNKNSearch(K);
     std::vector<float> pointNKNSquaredDistance(K);
@@ -675,8 +683,22 @@ int ExtendedDMG::get_supervoxel_index(Eigen::Vector3f contact){
     double min_dist=DBL_MAX;
     int min_dist_idx=-1;
     if (centroids_kdtree.nearestKSearch(input, K, pointIdxNKNSearch, pointNKNSquaredDistance)> 0){
-        std::cout<<"given: "<<contact.transpose()<<"result: "<<pointIdxNKNSearch[0]<<std::endl;
-        return int(pc_to_supervoxel_idx.at(pointIdxNKNSearch[0])); //the first and only found index is the nearest neighbor
+        for (size_t i = 0; i < pointIdxNKNSearch.size (); ++i){
+            // std::cout<<" possible point: "<<pointIdxNKNSearch[i]<<" which is: "<<pc_to_supervoxel_idx.at(pointIdxNKNSearch[i])<<std::endl;
+            // std::cout<<"    "<<all_centroids_cloud->at(pointIdxNKNSearch[i]).x<<" "<<all_centroids_cloud->at(pointIdxNKNSearch[i]).y<<" "<<all_centroids_cloud->at(pointIdxNKNSearch[i]).z<<std::endl;
+            // std::cout<<"distance fom the input: "<<pointNKNSquaredDistance[i]<<std::endl;
+            //manually check the distance because there's something wrong?
+            // double node_distance=(contact(0)*1000.0-all_centroids_cloud->at(pointIdxNKNSearch[i]).x)*(contact(0)*1000.0-all_centroids_cloud->at(pointIdxNKNSearch[i]).x)+(contact(1)*1000.0-all_centroids_cloud->at(pointIdxNKNSearch[i]).y)*(contact(1)*1000.0-all_centroids_cloud->at(pointIdxNKNSearch[i]).y)+(contact(2)*1000.0-all_centroids_cloud->at(pointIdxNKNSearch[i]).z)*(contact(2)*1000.0-all_centroids_cloud->at(pointIdxNKNSearch[i]).z);
+            // std::cout<<"custom distance: "<<node_distance<<std::endl;
+            // std::cout<<contact(0)*1000.0-all_centroids_cloud->at(pointIdxNKNSearch[i]).x<<" "<<contact(1)*1000.0-all_centroids_cloud->at(pointIdxNKNSearch[i]).y<<" "<<contact(2)*1000.0-all_centroids_cloud->at(pointIdxNKNSearch[i]).z<<std::endl;
+            if(pointNKNSquaredDistance[i]<min_dist){
+                min_dist=pointNKNSquaredDistance[i];
+                min_dist_idx=i;
+            }
+        }
+        // std::cout<<" the closest supervoxel: "<<all_centroids_cloud->at(pointIdxNKNSearch[min_dist_idx]).x<<" "<<all_centroids_cloud->at(pointIdxNKNSearch[min_dist_idx]).y<<" "<<all_centroids_cloud->at(pointIdxNKNSearch[min_dist_idx]).z<<std::endl;
+        // std::cout<<"given: "<<contact.transpose()<<"result: "<<pointIdxNKNSearch[min_dist_idx]<<" which is: "<<pc_to_supervoxel_idx.at(pointIdxNKNSearch[min_dist_idx])<<std::endl;
+        return int(pc_to_supervoxel_idx.at(pointIdxNKNSearch[min_dist_idx])); //the first and only found index is the nearest neighbor
     }
     else{
         std::cout<<"No neighbour found."<<std::endl;
@@ -686,7 +708,7 @@ int ExtendedDMG::get_supervoxel_index(Eigen::Vector3f contact){
 
 Eigen::Vector3f ExtendedDMG::get_normal_at_contact(Eigen::Vector3f contact){
     //get the index of the supervoxel
-    int idx=get_supervoxel_index(contact);
+    int idx=get_supervoxel_index(contact, false);
     std::cout<<"supervoxel index used: "<<idx<<std::endl;
     //get the normal of that component
     std::cout<<"component used for getting normals: "<<nodes_to_connected_component.at(idx)<<std::endl;
@@ -696,7 +718,7 @@ Eigen::Vector3f ExtendedDMG::get_normal_at_contact(Eigen::Vector3f contact){
 }
 
 Eigen::Vector3f ExtendedDMG::get_zero_angle_direction(Eigen::Vector3f contact){
-    Eigen::Vector3f nx=component_to_average_normal.at(nodes_to_connected_component.at(get_supervoxel_index(contact)));
+    Eigen::Vector3f nx=component_to_average_normal.at(nodes_to_connected_component.at(get_supervoxel_index(contact, false)));
     Eigen::Vector3f ny=get_orthogonal_axis(nx); //ny is the axis at which the angle is 0, for all the nodes
     return ny;
 }
@@ -878,6 +900,9 @@ std::map<int, double> ExtendedDMG::weight_regrasping_area(Eigen::Vector3f releas
                     all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(n)).y, 
                     all_centroids_cloud->points.at(supervoxel_to_pc_idx.at(n)).z;
 
+                std::cout<<"normal at node "<<n<<": "<<component_normal.transpose()<<std::endl;
+                std::cout<<"to the point: "<<c.transpose()<<" the opposite is: "<<std::endl;
+
 
                 //check if it is possible to grasp at the first contact
                 Eigen::Vector3f end_point_ray=c-1000.0*component_normal; //this point is the final point for the ray, from c1 outwards (opposite to line) of 1000 (1m)
@@ -887,6 +912,7 @@ std::map<int, double> ExtendedDMG::weight_regrasping_area(Eigen::Vector3f releas
                 if(intersections.size()>0){
                     for(int idx=0; idx<intersections.size(); idx++){
                         Eigen::Vector3f point_i=intersections[idx];
+                        std::cout<<"    "<<point_i.transpose()<<std::endl;
                         double distance=(point_i-c).norm();
                         if(distance>0.5){
                             //in this case the intersection is not the current considered point!
@@ -912,7 +938,7 @@ std::map<int, double> ExtendedDMG::weight_regrasping_area(Eigen::Vector3f releas
                                     }
                                 }
                                 //check the closest node to the intersection
-                                int opposite_node=get_supervoxel_index(point_i);
+                                int opposite_node=get_supervoxel_index(point_i, false);
                                 //sanity check on the opposite node: get the two normals and see if they are too far apart (in absolute value)
                                 // std::cout<<"lalalalala"<<std::endl;
                                 try{
@@ -923,7 +949,9 @@ std::map<int, double> ExtendedDMG::weight_regrasping_area(Eigen::Vector3f releas
                                     double cos_angle=normal_n.dot(normal_opposite)/(normal_opposite.norm()*normal_n.norm());
                                     if((fabs(acos(cos_angle))<0.4) || (fabs(acos(cos_angle)-M_PI)<0.4)){
                                         std::cout<<"---------------   VALID OPPOSITE COMPONENT FOUND"<<std::endl;
+                                        std::cout<<"opposite node: "<<opposite_node<<std::endl;
                                         if(regrasp_area_values.count(opposite_node)<1){
+                                            std::cout<<"IN!"<<std::endl;
                                             double node_distance_1=((point_i-release_contact_1).cross((point_i-release_contact_2))).norm()/(release_contact_2-release_contact_1).norm();
                                             double node_distance_2=((point_i-regrasp_contact_1).cross((point_i-regrasp_contact_2))).norm()/(regrasp_contact_2-regrasp_contact_1).norm();
                                             double d_value=node_distance_1+node_distance_2;
@@ -944,10 +972,30 @@ std::map<int, double> ExtendedDMG::weight_regrasping_area(Eigen::Vector3f releas
                                                 regrasp_poses_distance_values[std::pair<int, int>(n, opposite_node)]=cumulative_d;
                                             }
                                         }
+                                        else if(regrasp_poses_distance_values.count(std::pair<int, int>(n, opposite_node))<1 && regrasp_poses_distance_values.count(std::pair<int, int>(opposite_node, n))<1){
+
+                                            // std::cout<<"the node was already considered!"<<std::endl;
+                                            // double node_distance_1=((point_i-release_contact_1).cross((point_i-release_contact_2))).norm()/(release_contact_2-release_contact_1).norm();
+                                            // double node_distance_2=((point_i-regrasp_contact_1).cross((point_i-regrasp_contact_2))).norm()/(regrasp_contact_2-regrasp_contact_1).norm();
+                                            // double d_value=node_distance_1+node_distance_2;
+                                            // double d_diff=fabs(node_distance_1-node_distance_2);
+                                            double val=regrasp_area_values.at(opposite_node);
+                                            // std::cout<<"+++ diff: "<<d_diff<<"  val: "<<val<<std::endl;
+                                            cumulative_d+=val;
+                                            if(node_to_angle_components.find(opposite_node)!= node_to_angle_components.end()){
+                                                for(int angle_comp:node_to_angle_components.at(opposite_node)){
+                                                    regrasping_candidate_nodes[1].push_back(std::pair<int, int>(opposite_node, angle_comp));
+                                                }
+                                                //put these two points (without angle component for now) in the regrasp value map
+                                                regrasp_poses_distance_values[std::pair<int, int>(n, opposite_node)]=cumulative_d;
+                                            }
+                                            
+                                        }
                                     }
                                     //otherwise this node is not valid, but maybe the opposite component is
                                     else{
-                                        std::cout<<"------- INVALID OPPOSITE COMPONENT"<<std::endl;
+                                        std::cout<<"------- INVALID NODE"<<std::endl;
+                                        std::cout<<"invalid node: "<<n<<std::endl;
                                         if(regrasp_area_values.count(int(n))<1){
                                             regrasp_area_values.insert(std::pair<int, double>(n, 0.0));
                                         }
@@ -959,10 +1007,12 @@ std::map<int, double> ExtendedDMG::weight_regrasping_area(Eigen::Vector3f releas
                             else{
                                 //this node is not valid and so is the opposite component
                                 if(regrasp_area_values.count(int(n))<1){
+                                    std::cout<<"invalid node: "<<n<<std::endl;
                                     regrasp_area_values.insert(std::pair<int, double>(n, 0.0));
                                 }
-                                int opposite_node=get_supervoxel_index(point_i);
+                                int opposite_node=get_supervoxel_index(point_i, false);
                                 if(regrasp_area_values.count(opposite_node)<1){
+                                    std::cout<<"invalid opposite node: "<<opposite_node<<std::endl;
                                     regrasp_area_values.insert(std::pair<int, double>(opposite_node, 0.0));
                                 }
                             }
@@ -1043,7 +1093,7 @@ void ExtendedDMG::visualize_results(){
     std::cout<<std::endl<<" +++ initial pose: "<<master_initial_pose.transpose()<<std::endl;
     // std::cout<<"  component: "<<nodes_to_connected_component.at(get_supervoxel_index(master_initial_pose.block<3, 1>(0, 0)*1000.0))<<std::endl;
     Eigen::Quaternionf quatquat(master_initial_pose(6, 0), master_initial_pose(3, 0), master_initial_pose(4, 0), master_initial_pose(5, 0));
-    int initial_angle_test=pose_to_angle(quatquat, nodes_to_connected_component.at(get_supervoxel_index(master_initial_pose.block<3, 1>(0, 0))));
+    int initial_angle_test=pose_to_angle(quatquat, nodes_to_connected_component.at(get_supervoxel_index(master_initial_pose.block<3, 1>(0, 0), false)));
     // std::cout<<std::endl<<" +++++ initial angle test: "<<initial_angle_test<<std::endl;
 
     // std::cout<<"  +++desired pose: "<<master_desired_pose.transpose()<<std::endl;
@@ -1060,38 +1110,40 @@ void ExtendedDMG::visualize_results(){
     pcl::getMinMax3D(*object_shape, min, max);
     double normalizing_factor=std::max(std::max(max.x-min.x, max.y-min.y), max.z-min.z);
     double radius;
-    for(std::pair<int, int> n:regrasping_candidate_nodes[1]){
+    for(std::pair<int, int> n : regrasping_candidate_nodes[1]){
         //now check the distance and normalize it w.r.t. the maximum value of the bounding box
         radius=10.0*nodes_distances_from_regrasps.at(n.first)/normalizing_factor;
         //if this node is one of the two that are perfect candidates for regrasping, then put them in yellow
+        std::cout<<"node: "<<n.first<<" is: "<<all_centroids_cloud->at(supervoxel_to_pc_idx.at(n.first)).x<<" "<<all_centroids_cloud->at(supervoxel_to_pc_idx.at(n.first)).y<<" "<<all_centroids_cloud->at(supervoxel_to_pc_idx.at(n.first)).z<<std::endl;
         if(n.first==regrasp2_node1||n.first==regrasp2_node2){
-            // regrasp_viewer->addSphere(all_centroids_cloud->at(supervoxel_to_pc_idx.at(n.first)), radius, 1.0, 1.0, 0.0, "node_"+std::to_string(n.first));
-            // regrasp_viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.2, "node_"+std::to_string(n.first));
+            std::cout<<"!!!!!!!!!! equivalent to pc: "<<supervoxel_to_pc_idx.at(n.first)<<std::endl;
+            regrasp_viewer->addSphere(all_centroids_cloud->at(supervoxel_to_pc_idx.at(n.first)), radius, 1.0, 1.0, 0.0, "node_"+std::to_string(n.first));
+            regrasp_viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.2, "node_"+std::to_string(n.first));
         }
         else{
-            // regrasp_viewer->addSphere(all_centroids_cloud->at(supervoxel_to_pc_idx.at(n.first)), radius, 0.0, 0.0, 1.0, "node_"+std::to_string(n.first));
-            // regrasp_viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.2, "node_"+std::to_string(n.first));        
+            regrasp_viewer->addSphere(all_centroids_cloud->at(supervoxel_to_pc_idx.at(n.first)), radius, 0.0, 0.0, 1.0, "node_"+std::to_string(n.first));
+            regrasp_viewer->setShapeRenderingProperties(pcl::visualization::PCL_VISUALIZER_OPACITY, 0.2, "node_"+std::to_string(n.first));        
         }
     }
 
     //draw the fingers during the transition
-    std::cout<<"--------------------------------------------------------------------------"<<std::endl;
-    Eigen::Vector3f current_point=initial_pose_1.block<3, 1>(0, 0);
-    std::cout<<"new point: "<<current_point.transpose()<<std::endl;
-    double current_angle=double(initial_angle_test)*M_PI/180.0;
-    std::cout<<"new angle: "<<current_angle<<std::endl<<std::endl;
-    for(int i=1; i<r_translations[0].size()-1; i++){
-        current_point(0)=r_translations[0][i].x;
-        current_point(1)=r_translations[0][i].y;
-        current_point(2)=r_translations[0][i].z;
-        //draw before and after the rotation
-        // draw_finger("f_path_before"+std::to_string(i), current_point*1000.0, angle_to_pose(current_angle, current_point), 1, false);
-        std::cout<<"new point: "<<current_point.transpose()<<std::endl;
-        current_angle=current_angle+r_rotations[0][i-1];
-        std::cout<<"new angle: "<<current_angle<<std::endl<<std::endl;
+    // std::cout<<"--------------------------------------------------------------------------"<<std::endl;
+    // Eigen::Vector3f current_point=initial_pose_1.block<3, 1>(0, 0);
+    // std::cout<<"new point: "<<current_point.transpose()<<std::endl;
+    // double current_angle=double(initial_angle_test)*M_PI/180.0;
+    // std::cout<<"new angle: "<<current_angle<<std::endl<<std::endl;
+    // for(int i=1; i<r_translations[0].size()-1; i++){
+    //     current_point(0)=r_translations[0][i].x;
+    //     current_point(1)=r_translations[0][i].y;
+    //     current_point(2)=r_translations[0][i].z;
+    //     //draw before and after the rotation
+    //     // draw_finger("f_path_before"+std::to_string(i), current_point*1000.0, angle_to_pose(current_angle, current_point), 1, false);
+    //     std::cout<<"new point: "<<current_point.transpose()<<std::endl;
+    //     current_angle=current_angle+r_rotations[0][i-1];
+    //     std::cout<<"new angle: "<<current_angle<<std::endl<<std::endl;
 
-        // draw_finger("f_path_after"+std::to_string(i), current_point*1000.0, angle_to_pose(current_angle, current_point), 1, false);
-    }
+    //     // draw_finger("f_path_after"+std::to_string(i), current_point*1000.0, angle_to_pose(current_angle, current_point), 1, false);
+    // }
 
 }
 
@@ -1171,7 +1223,7 @@ Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3
     bool inwards=is_normal_inwards(contact, nx);
     if(inwards){
         std::cout<<"which is inwards"<<std::endl;
-        angle=angle-M_PI;
+        // angle=angle-M_PI;
     }
 
     std::cout<<"normal: "<<nx.transpose()<<std::endl;
@@ -1235,7 +1287,8 @@ Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3
     // Eigen::Quaternion<float> q(finger_pose);
 
     Eigen::Vector3f gripper_x;
-    gripper_x<<0, cos(angle), sin(angle);
+    gripper_x<<0, -cos(angle), -sin(angle);
+    // gripper_x<<0, cos(angle), sin(angle);
     // gripper_x<<0, cos(angle+M_PI), sin(angle+M_PI);
     Eigen::Vector3f gripper_z;
     gripper_z<<1, 0, 0; //because it is nx in the component
@@ -1279,15 +1332,15 @@ int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_princ
     int best_possible_angle=-1;
 
     //store the set of valid angles for the secondary finger
-    std::set<int> secondary_regrasp_valid_angles=possible_angles.at(get_supervoxel_index(contact1_secondary));
+    std::set<int> secondary_regrasp_valid_angles=possible_angles.at(get_supervoxel_index(contact1_secondary, false));
     // std::cout<<"valid secondary angles: :::::::";
     // for(auto ang : secondary_regrasp_valid_angles){
     //     std::cout<<" "<<ang;
     // }
     std::cout<<std::endl;
     //store also the secondary component
-    int secondary_regrasping_cc=nodes_to_connected_component.at(get_supervoxel_index(contact1_secondary));
-    int principal_regrasping_cc=nodes_to_connected_component.at(get_supervoxel_index(contact1_principal));
+    int secondary_regrasping_cc=nodes_to_connected_component.at(get_supervoxel_index(contact1_secondary, false));
+    int principal_regrasping_cc=nodes_to_connected_component.at(get_supervoxel_index(contact1_principal, false));
 
 
     //create the first rectangle in 3D:
@@ -1346,7 +1399,7 @@ int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_princ
     rectangle2.push_back(v24);
 
     //Now, loop through all the possible candidate regrasping angles to check if some are collision-free
-    std::set<int> all_angles=possible_angles.at(get_supervoxel_index(contact1_principal));
+    std::set<int> all_angles=possible_angles.at(get_supervoxel_index(contact1_principal, false));
     // std::cout<<"valid principal angles: :::::::";
     // for(auto ang : all_angles){
     //     std::cout<<" "<<ang;

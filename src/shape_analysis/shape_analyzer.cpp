@@ -1108,9 +1108,9 @@ void ShapeAnalyzer::refine_adjacency(){
                         }
                     }
                 }
-                // if(true){
+                if(true){
                 // if(component==4){
-                if(false){
+                // if(false){
                 //if(nodes[idx] == 53 || nodes[idx] == 58 || nodes[idx] == 55 || nodes[idx] ==114){
                 // if(nodes[idx] == 53){
                     //std::cout<<"==========idx: "<<idx<<std::endl;
