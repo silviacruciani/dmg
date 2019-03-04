@@ -1141,7 +1141,6 @@ void ExtendedDMG::visualize_results(){
     //     std::cout<<"new point: "<<current_point.transpose()<<std::endl;
     //     current_angle=current_angle+r_rotations[0][i-1];
     //     std::cout<<"new angle: "<<current_angle<<std::endl<<std::endl;
-
     //     // draw_finger("f_path_after"+std::to_string(i), current_point*1000.0, angle_to_pose(current_angle, current_point), 1, false);
     // }
 
