@@ -43,6 +43,7 @@ namespace shape_analysis{
             bool compute_extended_path(int finger_id);
             void set_finger_length(double l);
             void set_normal_threshold(double t);
+            void set_angle_resolution(int res);
             void refine_adjacency(); //this checks for simple collisions with the gripper
             void set_supervoxel_parameters(float voxel_res, float seed_res, float color_imp, float spatial_imp, float normal_imp, bool disable_transf, int refinement_its);
             std::vector<geometry_msgs::Point> get_translation_sequence();

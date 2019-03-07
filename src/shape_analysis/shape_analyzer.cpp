@@ -648,6 +648,10 @@ void ShapeAnalyzer::set_normal_threshold(double t){
     normal_threshold=t;
 }
 
+void ShapeAnalyzer::set_angle_resolution(int res){
+    angle_jump=res;
+}
+
 void ShapeAnalyzer::refine_adjacency(){
     //create another viewport
     int v(0);
@@ -1108,9 +1112,9 @@ void ShapeAnalyzer::refine_adjacency(){
                         }
                     }
                 }
-                if(true){
+                // if(true){
                 // if(component==4){
-                // if(false){
+                if(false){
                 //if(nodes[idx] == 53 || nodes[idx] == 58 || nodes[idx] == 55 || nodes[idx] ==114){
                 // if(nodes[idx] == 53){
                     //std::cout<<"==========idx: "<<idx<<std::endl;
@@ -1706,6 +1710,7 @@ void ShapeAnalyzer::generate_connected_components_list_of_extended_refined_adjac
     }
 
     std::cout<<"Found EXTENDED connected components: "<<component_id+1<<std::endl;
+    num_extended_connected_components=component_id+1;
 }
 
 std::pair<std::stack<std::pair<int, int>>, std::stack<int>> ShapeAnalyzer::get_extended_path(std::multimap<std::pair<int, int>, std::pair<int, int>> graph, int init, int end, Eigen::Vector3f grasp_line, std::pair<int, int> opposite_component_init, std::pair<int, int> opposite_component_end, int initial_angle, int desired_angle){
