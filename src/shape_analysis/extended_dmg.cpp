@@ -284,6 +284,7 @@ int ExtendedDMG::compute_extended_path(int finger_id){
 
     for(int idx=0; idx<regrasping_candidate_nodes[0].size() && !valid_configuration; idx++){
         std::cout<<"Iteration: "<<idx<<std::endl;
+        std::cout<<"current regrasping candidate: "<<regrasping_candidate_nodes[0][idx].first<<regrasping_candidate_nodes[0][idx].second<<std::endl<<std::endl;
         already_visited_nodes.insert(regrasping_candidate_nodes[0][idx]);
         //current values:
         pcl::PointXYZRGBA p=all_centroids_cloud->at(supervoxel_to_pc_idx.at(regrasping_candidate_nodes[0][idx].first));
@@ -361,6 +362,11 @@ int ExtendedDMG::compute_extended_path(int finger_id){
             regrasp1_angle=M_PI*float(int_regrasp1_angle)/180;
             std::cout<<"second gripper regrasp angle: "<<regrasp2_angle<<std::endl;
             valid_configuration=true;
+            //if the modified angle is not the desired one, this must be considered for later in-hand manipulation planning
+            if(abs(int_regrasp1_angle - principal_desired_angle)>=angle_jump){
+                direct_regrasp_1=false;
+
+            }
         }
         else{
             // //loop over all the possible angles (this could take time)
@@ -400,9 +406,11 @@ int ExtendedDMG::compute_extended_path(int finger_id){
                     //then the regrasp angle is fine in the new node (in theory I should check if is graspable there. TO DO)
                 if(already_visited_nodes.find(adjacent_itr->second)==already_visited_nodes.end()){
                     regrasping_candidate_nodes[0].push_back(adjacent_itr->second);
+                    std::cout<<"adding: "<<adjacent_itr->second.first<<" "<<adjacent_itr->second.second<<std::endl;
                     direct_regrasp_1=false;
                 }
                 std::cout<<std::endl<<"================================="<<std::endl<<std::endl<<"adding more candidates"<<std::endl;
+                std::cout<<"regrasp candidate nodes size: "<<regrasping_candidate_nodes[0].size()<<std::endl;
                 // }
 
             }
@@ -427,7 +435,11 @@ int ExtendedDMG::compute_extended_path(int finger_id){
 
         int regrasp1_angle_secondary= pose_to_angle(angle_to_pose(M_PI*float(int_regrasp1_angle)/180.0, regrasp1_principal), nodes_to_connected_component.at(regrasp1_secondary_node));
         std::cout<<"222222"<<std::endl;
+        std::cout<<regrasp1_angle_secondary<<std::endl;
         
+        if(node_angle_to_angle_component.count(std::pair<int, int>(regrasp1_secondary_node, regrasp1_angle_secondary))<1){
+            std::cout<<"No valid regrasp angle secondary"<<std::endl;
+        }
         int regrasp1_angle_component_secondary=node_angle_to_angle_component.at(std::pair<int, int>(regrasp1_secondary_node, regrasp1_angle_secondary));
         std::cout<<"3333333"<<std::endl;
         
@@ -1299,7 +1311,23 @@ Eigen::Quaternion<float> ExtendedDMG::angle_to_pose(double angle, Eigen::Vector3
     bool inwards=is_normal_inwards(contact, nx);
     if(inwards){
         // std::cout<<"which is inwards"<<std::endl;
-        // angle=angle-M_PI;
+        angle=angle-M_PI;
+        // angle=-angle;
+        Eigen::Matrix3f R;
+        R.block<3, 1>(0, 0)=nx;
+        R.block<3, 1>(0, 1)=ny;
+        R.block<3, 1>(0, 2)=nz;
+        Eigen::Quaternionf q_y;
+        q_y.x()=0;
+        q_y.y()=1;
+        q_y.z()=0;
+        q_y.w()=0;
+        Eigen::Matrix3f R_around_y=q_y.toRotationMatrix();
+        R=R_around_y*R;
+        nx=R.block<3, 1>(0, 0);
+        ny=R.block<3, 1>(0, 1);
+        nz=R.block<3, 1>(0, 2);
+
     }
 
     // std::cout<<"normal: "<<nx.transpose()<<std::endl;
@@ -1481,133 +1509,160 @@ int ExtendedDMG::get_collision_free_regrasp_angle(Eigen::Vector3f contact1_princ
     // std::cout<<"direction: "<<direction.transpose()<<std::endl;
     // std::cout<<"CONTROL sign: "<<plane.dot(control_point1)<<std::endl;
 
-    //create the second rectangle in 3D:
-    Eigen::Vector3f v21=point2_principal;
-    Eigen::Vector3f v22=point2_secondary;
-    //obtain the other 2 vertices with the same procedure as before:
-    normal=get_normal_at_contact(v21);
-    inwards=is_normal_inwards(v21, normal);
-    zero_axis=get_zero_angle_direction(v21);
-    std::cout<<"desired angle: "<<grasping_angle2<<std::endl;
-    R_axis_angle=axis_angle_matrix(normal, grasping_angle2*M_PI/180.0);
-    if(inwards){
-        // R_axis_angle=axis_angle_matrix(normal, grasping_angle2+M_PI);
-    }
-    direction=R_axis_angle*zero_axis; //double check if it is correct
-    std::cout<<"direction: "<<direction.transpose()<<std::endl;
-    Eigen::Vector3f v23=v22+l_finger*direction;
-    Eigen::Vector3f v24=v21+l_finger*direction;
-    std::vector<Eigen::Vector3f> rectangle2;
-    rectangle2.push_back(v21);
-    rectangle2.push_back(v22);
-    rectangle2.push_back(v23);
-    rectangle2.push_back(v24);
+    //the possible angles of the first gripper:
+    std::set<int> regrasp_gripper1_angles=possible_angles.at(get_supervoxel_index(point2_principal, false));
+    int current_angle=grasping_angle2;
 
-    std::cout<<"FIRST RECTANGLE: "<<std::endl<<v11.transpose()<<std::endl<<v12.transpose()<<std::endl<<v13.transpose()<<std::endl<<v14.transpose()<<std::endl;
-    std::cout<<"SECOND RECTANGLE: "<<std::endl<<v21.transpose()<<std::endl<<v22.transpose()<<std::endl<<v23.transpose()<<std::endl<<v24.transpose()<<std::endl;
-
-    //Now, loop through all the possible candidate regrasping angles to check if some are collision-free
-    std::set<int> all_angles=possible_angles.at(get_supervoxel_index(contact1_principal, false));
-    // std::cout<<"valid principal angles: :::::::";
-    // for(auto ang : all_angles){
-    //     std::cout<<" "<<ang;
-    // }
-    //the first two verticese will always be the same
-    Eigen::Vector3f v31=contact1_principal;
-    Eigen::Vector3f v32=contact1_secondary;
-    normal=get_normal_at_contact(v31);
-    inwards=is_normal_inwards(v31, normal);
-    zero_axis=get_zero_angle_direction(v31);
-    Eigen::Vector3f v33, v34;
-    std::vector<Eigen::Vector3f> rectangle3;
-    rectangle3.push_back(v31);
-    rectangle3.push_back(v32);
-    rectangle3.push_back(v33);
-    rectangle3.push_back(v34);
-    float max_clearence=0;
+    regrasp_gripper1_angles.erase(current_angle);
     double min_clearence=DBL_MAX;
-    // std::cout<<"ALL ANGLES: "<<all_angles.size()<<std::endl;
-    for(int alpha : all_angles){
-        // std::cout<<std::endl;
-        // std::cout<<" ... testing: "<<alpha<<std::endl;
 
-        //check if this angle is valid in the opposite component. If not, move forward
-        Eigen::Quaternionf current_pose=angle_to_pose(M_PI*float(alpha)/180.0, contact1_principal);
-        // std::cout<<"pose: "<<current_pose.x()<<" "<<current_pose.y()<<" "<<current_pose.z()<<" "<<current_pose.w()<<std::endl;
-        int opposite_angle=pose_to_angle(current_pose, principal_regrasping_cc);
-        // int opposite_angle=pose_to_angle(current_pose, secondary_regrasping_cc);
-        // draw_finger("finger_secondary"+std::to_string(alpha), contact1_secondary, current_pose, 0);
+    while(regrasp_gripper1_angles.size()>0){
+        //create the second rectangle in 3D:
+        Eigen::Vector3f v21=point2_principal;
+        Eigen::Vector3f v22=point2_secondary;
+        //obtain the other 2 vertices with the same procedure as before:
+        normal=get_normal_at_contact(v21);
+        inwards=is_normal_inwards(v21, normal);
+        zero_axis=get_zero_angle_direction(v21);
+        std::cout<<"desired angle: "<<current_angle<<std::endl;
+        R_axis_angle=axis_angle_matrix(normal, current_angle*M_PI/180.0);
+        if(inwards){
+            R_axis_angle=axis_angle_matrix(-normal, current_angle*M_PI/180.0-M_PI);
 
-        // std::cout<<"opposite_angle: "<<opposite_angle<<std::endl;
-        if(secondary_regrasp_valid_angles.count(opposite_angle)>0){
-            // std::cout<<"VALID!"<<std::endl;
+        }
+        direction=R_axis_angle*zero_axis; //double check if it is correct
+        std::cout<<"direction: "<<direction.transpose()<<std::endl;
+        Eigen::Vector3f v23=v22+l_finger*direction;
+        Eigen::Vector3f v24=v21+l_finger*direction;
+        std::vector<Eigen::Vector3f> rectangle2;
+        rectangle2.push_back(v21);
+        rectangle2.push_back(v22);
+        rectangle2.push_back(v23);
+        rectangle2.push_back(v24);
+
+        std::cout<<"FIRST RECTANGLE: "<<std::endl<<v11.transpose()<<std::endl<<v12.transpose()<<std::endl<<v13.transpose()<<std::endl<<v14.transpose()<<std::endl;
+        std::cout<<"SECOND RECTANGLE: "<<std::endl<<v21.transpose()<<std::endl<<v22.transpose()<<std::endl<<v23.transpose()<<std::endl<<v24.transpose()<<std::endl;
+
+        //Now, loop through all the possible candidate regrasping angles to check if some are collision-free
+        std::set<int> all_angles=possible_angles.at(get_supervoxel_index(contact1_principal, false));
+        // std::cout<<"valid principal angles: :::::::";
+        // for(auto ang : all_angles){
+        //     std::cout<<" "<<ang;
+        // }
+        //the first two verticese will always be the same
+        Eigen::Vector3f v31=contact1_principal;
+        Eigen::Vector3f v32=contact1_secondary;
+        normal=get_normal_at_contact(v31);
+        inwards=is_normal_inwards(v31, normal);
+        zero_axis=get_zero_angle_direction(v31);
+        Eigen::Vector3f v33, v34;
+        std::vector<Eigen::Vector3f> rectangle3;
+        rectangle3.push_back(v31);
+        rectangle3.push_back(v32);
+        rectangle3.push_back(v33);
+        rectangle3.push_back(v34);
+        float max_clearence=0;
+        min_clearence=DBL_MAX;
+        // std::cout<<"ALL ANGLES: "<<all_angles.size()<<std::endl;
+        for(int alpha : all_angles){
+            // std::cout<<std::endl;
+            // std::cout<<" ... testing: "<<alpha<<std::endl;
+
+            //check if this angle is valid in the opposite component. If not, move forward
+            Eigen::Quaternionf current_pose=angle_to_pose(M_PI*float(alpha)/180.0, contact1_principal);
+            // std::cout<<"pose: "<<current_pose.x()<<" "<<current_pose.y()<<" "<<current_pose.z()<<" "<<current_pose.w()<<std::endl;
+            int opposite_angle=pose_to_angle(current_pose, principal_regrasping_cc);
+            // int opposite_angle=pose_to_angle(current_pose, secondary_regrasping_cc);
+            // draw_finger("finger_secondary"+std::to_string(alpha), contact1_secondary, current_pose, 0);
+
+            // std::cout<<"opposite_angle: "<<opposite_angle<<std::endl;
+            if(secondary_regrasp_valid_angles.count(opposite_angle)>0){
+                // std::cout<<"VALID!"<<std::endl;
 
 
-        //the second vertices depend on the current angle. Obtained as before
-            R_axis_angle=axis_angle_matrix(normal, M_PI*float(alpha)/180.0);
-            if(inwards){
-                // R_axis_angle=axis_angle_matrix(normal, M_PI*float(alpha)/180.0+M_PI);
+            //the second vertices depend on the current angle. Obtained as before
+                R_axis_angle=axis_angle_matrix(normal, M_PI*float(alpha)/180.0);
+                if(inwards){
+                    // R_axis_angle=axis_angle_matrix(normal, M_PI*float(alpha)/180.0+M_PI);
+                }
+                direction=R_axis_angle*zero_axis;
+                v33=v32+l_finger*direction;
+                v34=v31+l_finger*direction;
+                rectangle3[2]=v33;
+                rectangle3[3]=v34;
+
+                //check first if this angle is not in the same direction of the first gripper
+                //this is done by ensuring that the two "finger vectors" are pointing in different directions of the plane (starting from the point on the plane)
+                Eigen::Vector3f finger_direction2=direction;
+                finger_direction2.normalize();
+                Eigen::Vector4f control_point2;
+                control_point2.block<3, 1>(0, 0)=point1_principal+finger_direction2;
+                control_point2(3)=1;
+                // std::cout<<"direction: "<<direction.transpose()<<std::endl;
+                // std::cout<<"result sign sign: "<<plane.dot(control_point2)<<std::endl;
+                //the two control points should have opposite signs, i.e. be on opposite sides of the plane
+                //it is -0.2 instead of 0 to account for numerical imprecisions
+                if((plane.dot(control_point1))*(plane.dot(control_point2))<-0.01){
+
+                    // draw_finger("finger_testing"+std::to_string(alpha), contact1_principal, current_pose, 0);
+                    bool collision1=false;
+                    bool collision2=false;
+                    //test if it is in collision with the first rectangle:
+                    collision1=are_rectangles_intersecting(rectangle1, rectangle3);
+                    if(!collision1){
+                        collision2=are_rectangles_intersecting(rectangle2, rectangle3);
+                    }
+
+                    //if both rectangles are collision-free, then we are happy and this angle is a good candidate angle!
+                    if(!(collision1||collision2)){
+                        //check the clearence (somehow)
+                        float clearence11=std::min((v33-v13).norm(), (v33-v14).norm()); 
+                        float clearence12=std::min((v34-v13).norm(), (v34-v14).norm());
+                        float clearence1=std::min(clearence11, clearence12); 
+                        float clearence21=std::min((v33-v23).norm(), (v33-v24).norm()); 
+                        float clearence22=std::min((v34-v23).norm(), (v34-v24).norm());
+                        float clearence2=std::min(clearence21, clearence22);
+                        // double min_clearence_local=std::min(clearence1, clearence2);
+                        float clearence=clearence1+clearence2 - std::max(clearence1, clearence2);
+                        //get the minimum clearence with ALL the vertices
+                        double min_clearence_all_vertices=min_vertices_distance(rectangle1, rectangle2, rectangle3);
+                        // std::cout<<std::endl<<"min tot clearence: "<<min_clearence_all_vertices<<std::endl<<std::endl;
+
+                        // std::cout<<"  --clearence: "<<clearence<<std::endl;
+                        if(clearence>max_clearence){
+                            std::cout<<"CURRENT RECTANGLE: "<<std::endl<<v31.transpose()<<std::endl<<v32.transpose()<<std::endl<<v33.transpose()<<std::endl<<v34.transpose()<<std::endl;
+
+                            max_clearence=clearence;
+                            best_possible_angle=alpha;
+                            std::cout<<"FOUND BEST POSSIBLE ANGLE  -- "<<alpha<<std::endl;
+                            if(min_clearence_all_vertices<min_clearence){
+                                min_clearence=min_clearence_all_vertices;
+                            }
+                        } 
+
+                    }
+                }
             }
-            direction=R_axis_angle*zero_axis;
-            v33=v32+l_finger*direction;
-            v34=v31+l_finger*direction;
-            rectangle3[2]=v33;
-            rectangle3[3]=v34;
 
-            //check first if this angle is not in the same direction of the first gripper
-            //this is done by ensuring that the two "finger vectors" are pointing in different directions of the plane (starting from the point on the plane)
-            Eigen::Vector3f finger_direction2=direction;
-            finger_direction2.normalize();
-            Eigen::Vector4f control_point2;
-            control_point2.block<3, 1>(0, 0)=point1_principal+finger_direction2;
-            control_point2(3)=1;
-            // std::cout<<"direction: "<<direction.transpose()<<std::endl;
-            // std::cout<<"result sign sign: "<<plane.dot(control_point2)<<std::endl;
-            //the two control points should have opposite signs, i.e. be on opposite sides of the plane
-            //it is -0.2 instead of 0 to account for numerical imprecisions
-            if((plane.dot(control_point1))*(plane.dot(control_point2))<-0.01){
-
-                // draw_finger("finger_testing"+std::to_string(alpha), contact1_principal, current_pose, 0);
-                bool collision1=false;
-                bool collision2=false;
-                //test if it is in collision with the first rectangle:
-                collision1=are_rectangles_intersecting(rectangle1, rectangle3);
-                if(!collision1){
-                    collision2=are_rectangles_intersecting(rectangle2, rectangle3);
-                }
-
-                //if both rectangles are collision-free, then we are happy and this angle is a good candidate angle!
-                if(!(collision1||collision2)){
-                    //check the clearence (somehow)
-                    float clearence11=std::min((v33-v13).norm(), (v33-v14).norm()); 
-                    float clearence12=std::min((v34-v13).norm(), (v34-v14).norm());
-                    float clearence1=std::min(clearence11, clearence12); 
-                    float clearence21=std::min((v33-v23).norm(), (v33-v24).norm()); 
-                    float clearence22=std::min((v34-v23).norm(), (v34-v24).norm());
-                    float clearence2=std::min(clearence21, clearence22);
-                    // double min_clearence_local=std::min(clearence1, clearence2);
-                    float clearence=clearence1+clearence2 - std::max(clearence1, clearence2);
-                    //get the minimum clearence with ALL the vertices
-                    double min_clearence_all_vertices=min_vertices_distance(rectangle1, rectangle2, rectangle3);
-                    // std::cout<<std::endl<<"min tot clearence: "<<min_clearence_all_vertices<<std::endl<<std::endl;
-
-                    // std::cout<<"  --clearence: "<<clearence<<std::endl;
-                    if(clearence>max_clearence){
-                        std::cout<<"CURRENT RECTANGLE: "<<std::endl<<v31.transpose()<<std::endl<<v32.transpose()<<std::endl<<v33.transpose()<<std::endl<<v34.transpose()<<std::endl;
-
-                        max_clearence=clearence;
-                        best_possible_angle=alpha;
-                        std::cout<<"FOUND BEST POSSIBLE ANGLE  -- "<<alpha<<std::endl;
-                        if(min_clearence_all_vertices<min_clearence){
-                            min_clearence=min_clearence_all_vertices;
-                        }
-                    } 
-
-                }
+        }
+        if(min_clearence>min_clearence_threshold){
+            break;
+        }
+        //get a new element of the set of angles (only if it is valid)
+        bool valid=false;
+        while(!valid&&regrasp_gripper1_angles.size()>0){
+            current_angle=*regrasp_gripper1_angles.begin();
+            regrasp_gripper1_angles.erase(current_angle);
+            Eigen::Quaternionf current_pose=angle_to_pose(M_PI*float(current_angle)/180.0, point2_principal);
+            int current_secondary_node=get_supervoxel_index(point2_secondary, false);
+            int current_secondary_component=nodes_to_connected_component.at(current_secondary_node);
+            int regrasp1_angle_secondary=pose_to_angle(current_pose, current_secondary_component);
+            if(possible_angles.at(current_secondary_node).find(regrasp1_angle_secondary)!=possible_angles.at(current_secondary_node).end()){
+                valid=true;
             }
         }
-
     }
+    grasping_angle2=current_angle;
     std::cout<<std::endl<<"++++++++ MIN CLEARENCE: "<<min_clearence<<std::endl;
     if(min_clearence<min_clearence_threshold){
         std::cout<<"The current configuration is not far enough from the gripper..."<<std::endl;

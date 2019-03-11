@@ -99,13 +99,15 @@ void BalancingDMG::saveDMGComponents(std::string file_path, std::string file_nam
     std::string node_component_file=file_path+"node_component_"+file_name;
     std::string component_normal_file=file_path+"component_normal_"+file_name;
     std::string node_position_file=file_path+"node_position_"+file_name;
+    std::string node_angle_angle_component_file=file_path+"node_angle_angle_component_"+file_name;
 
-    std::ofstream adj_f, na_f, nc_f, cn_f, np_f;
+    std::ofstream adj_f, na_f, nc_f, cn_f, np_f, nac_f;
     adj_f.open(adjacency_file);
     na_f.open(node_angle_file);
     nc_f.open(node_component_file);
     cn_f.open(component_normal_file);
     np_f.open(node_position_file);
+    nac_f.open(node_angle_angle_component_file);
 
     for(int i=0; i<num_extended_connected_components; i++){
         if(extended_connected_component_to_set_of_nodes_angle.count(i)>0){
@@ -114,7 +116,6 @@ void BalancingDMG::saveDMGComponents(std::string file_path, std::string file_nam
             if(component_nodes.size()>1){
                 //print the average normal
                 Eigen::Vector3f nx=component_to_average_normal.at(nodes_to_connected_component.at(component_nodes.begin()->first));
-                nx=nx/1000.0; //from mm to m
                 cn_f<<i<<" "<<nx(0)<<" "<<nx(1)<<" "<<nx(2)<<std::endl;
                 for(std::pair<int, int> n : component_nodes){
                     //print the component of this node
@@ -124,12 +125,15 @@ void BalancingDMG::saveDMGComponents(std::string file_path, std::string file_nam
                     position(0)=all_centroids_cloud->at((supervoxel_to_pc_idx.at(n.first))).x;
                     position(1)=all_centroids_cloud->at((supervoxel_to_pc_idx.at(n.first))).y;
                     position(2)=all_centroids_cloud->at((supervoxel_to_pc_idx.at(n.first))).z;
+                    position=position/1000.0;
                     np_f<<n.first<<" "<<n.second<<" "<<position(0)<<" "<<position(1)<<" "<<position(2)<<std::endl;
                     //print all the angles of this node
                     na_f<<n.first<<" "<<n.second;
                     std::set<int> angles=node_component_to_angles_subset.at(n);
                     for(int angle : angles){
                         na_f<<" "<<angle;
+                        int angle_component=node_angle_to_angle_component.at(std::pair<int, int>(n.first, angle));
+                        nac_f<<n.first<<" "<<angle<<" "<<angle_component<<std::endl;
                     }
                     na_f<<std::endl;
                     //print all the neighbors of this node
@@ -152,6 +156,7 @@ void BalancingDMG::saveDMGComponents(std::string file_path, std::string file_nam
     nc_f.close();
     cn_f.close();
     np_f.close();
+    nac_f.close();
     std::cout<<"the DMG was saved into files"<<std::endl;
 
 }
