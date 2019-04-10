@@ -92,6 +92,27 @@ void BalancingDMG::drawAllFingers(){
 
 }
 
+Eigen::Vector3f get_orthogonal_axis(Eigen::Vector3f nx){
+    Eigen::Vector3f ny;
+    if(fabs(nx(0))>0.00000001){
+        ny(1)=0;
+        ny(2)=sqrt(nx(0)*nx(0)/(nx(0)*nx(0)+nx(2)*nx(2)));
+        ny(0)=-nx(2)*ny(2)/nx(0);
+    }
+    else if(fabs(nx(1))>0.00000001){
+        ny(2)=0;
+        ny(0)=sqrt(nx(1)*nx(1)/(nx(1)*nx(1)+nx(0)*nx(0)));
+        ny(1)=-ny(0)*nx(0)/nx(1);
+    }
+    else{
+        ny(0)=0;
+        ny(1)=sqrt(nx(2)*nx(2)/(nx(1)*nx(1)+nx(2)*nx(2)));
+        ny(2)=-nx(1)*ny(1)/nx(2);
+    }
+    return ny;
+}
+
+
 void BalancingDMG::saveDMGComponents(std::string file_path, std::string file_name){
     //we need to save: 1- the adjacency list 2- the node to angle set 3- the node to component -4 the component to average normal -5 node to position
     std::string adjacency_file=file_path+"graph_"+file_name;
@@ -116,7 +137,8 @@ void BalancingDMG::saveDMGComponents(std::string file_path, std::string file_nam
             if(component_nodes.size()>1){
                 //print the average normal
                 Eigen::Vector3f nx=component_to_average_normal.at(nodes_to_connected_component.at(component_nodes.begin()->first));
-                cn_f<<i<<" "<<nx(0)<<" "<<nx(1)<<" "<<nx(2)<<std::endl;
+                Eigen::Vector3f ny = get_orthogonal_axis(nx);
+                cn_f<<i<<" "<<nx(0)<<" "<<nx(1)<<" "<<nx(2)<<" "<<ny(0)<<" "<<ny(1)<<" "<<ny(2)<<std::endl;
                 for(std::pair<int, int> n : component_nodes){
                     //print the component of this node
                     nc_f<<n.first<<" "<<n.second<<" "<<i<<std::endl;

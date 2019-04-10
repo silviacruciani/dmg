@@ -41,7 +41,7 @@ bool BalancingDMGServer::compute_path(InHandPath::Request &req, InHandPath::Resp
 }
 
 void BalancingDMGServer::init(ros::NodeHandle &n){
-    std::string object_name, object_file_path, service_name;
+    std::string object_name, object_file_path, service_name, object_id;
     double finger_length, voxel_resolution, seed_resolution, color_importance, spatial_importance, normal_importance, normal_threshold;
     int refinement_iterations, angle_resolution;
     bool disable_transform;
@@ -98,6 +98,14 @@ void BalancingDMGServer::init(ros::NodeHandle &n){
         normal_threshold=0.07;
         std::cout<<"No service name specified. Using default: "<<normal_threshold<<std::endl;
     }
+    if(!n.getParam("object_id", object_id)){
+        object_id="tray";
+        std::cout<<"No object id specified. Using default: "<<object_id<<std::endl;
+    }
+    bool save_files;
+    if(!n.getParam("save_files", save_files)){
+        save_files=true;
+    }
 
 
     shape_analizer=BalancingDMG();
@@ -110,7 +118,9 @@ void BalancingDMGServer::init(ros::NodeHandle &n){
     shape_analizer.refine_adjacency();
     // shape_analizer.drawAllFingers();
     std::string file_path=ros::package::getPath("shape_analysis")+"/files/";
-    shape_analizer.saveDMGComponents(file_path, "tray_"+std::to_string(int(seed_resolution))+"_"+std::to_string(angle_resolution)+".txt");
+    if(save_files){
+        shape_analizer.saveDMGComponents(file_path, object_id+"_"+std::to_string(int(seed_resolution))+"_"+std::to_string(angle_resolution)+".txt");
+    }
 
     service=n.advertiseService(service_name, &BalancingDMGServer::compute_path, this);
     ROS_INFO("Shape analysis complete. Ready to compute in hand path.");
